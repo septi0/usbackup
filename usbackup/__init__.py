@@ -1,0 +1,45 @@
+import sys
+import argparse
+from usbackup.manager import UsbackupManager
+from usbackup.snapshot import UsbackupSnapshot
+from usbackup.snapshot_level import UsbackupSnapshotLevel
+from usbackup.exceptions import UsbackupConfigError
+
+APP_VENDOR = "uscentral"
+APP_NAME = "usbackup"
+APP_VERSION = "0.1.8"
+
+def main():
+    # get args from command line
+    parser = argparse.ArgumentParser(description='Usbackup software')
+    parser.add_argument('--config', dest='config_files', action='append', help='Config file(s) to use. This option is required', required=True)
+    parser.add_argument('--snapshot', dest='snapshot_names', action='append', help='Snapshot name(s). If none specified, all snapshots will be run')
+    parser.add_argument('--log', dest='log_file', help='Log file where to write logs')
+    parser.add_argument('--log-level', dest='log_level', help='Log level. Can be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL')
+    parser.add_argument('--service', dest='service', action='store_true', help='Run as service. Wake up every minute to check if there are any backups to be performed')
+    parser.add_argument('--configtest', dest='configtest', action='store_true', help='Test config file')
+    
+    args = parser.parse_args()
+
+    options = {}
+    configtest = False
+    
+    options['config_files'] = args.config_files
+    options['snapshot_names'] = args.snapshot_names
+    options['log_file'] = args.log_file
+    options['log_level'] = args.log_level
+    options['service'] = args.service
+
+    if args.configtest:
+        configtest = True
+
+    try:
+        usbackup = UsbackupManager(options)
+    except UsbackupConfigError as e:
+        print(f"Config error: {e}\nCheck documentation for more information on how to configure usbackup snapshots")
+        sys.exit(2)
+    
+    if configtest:
+        print("Config OK")
+    else:
+        usbackup.run()
