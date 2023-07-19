@@ -4,6 +4,9 @@ from setuptools import setup
 with open("README.md", "r") as f:
     long_description = f.read()
 
+with open("requirements.txt") as f:
+    requirements = [line.strip() for line in f]
+
 setup(
     name="usbackup",
     version="0.1.8",
@@ -15,9 +18,7 @@ setup(
     author_email='me@septi.ro',
     author_url='https://www.septi.ro',
     python_requires='>=3.10',
-    install_requires=[
-        'requests',
-    ],
+    install_requires=requirements,
     packages=[
         'usbackup',
         'usbackup.backup_handlers',
