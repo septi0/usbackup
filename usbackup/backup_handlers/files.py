@@ -83,9 +83,12 @@ class FilesHandler(BackupHandler):
                 host = self._backup_src_remote.host
 
                 dir_src = f'{user}@{host}:{dir_src}'
+
+                kwargs['ssh_port'] = self._backup_src_remote.port
+
                 if self._backup_src_remote.password:
-                    kwargs['ssh_port'] = self._backup_src_remote.port
                     kwargs['ssh_password'] = self._backup_src_remote.password
+                    logger.warning('Using password is insecure. Consider using ssh keys instead')
 
             logger.info(f'Copying "{dir_src}" to "{backup_dst}"')
             report += [f'* "{dir_src}" -> "{backup_dst}"', '']

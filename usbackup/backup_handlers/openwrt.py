@@ -48,6 +48,7 @@ class OpenWrtHandler(BackupHandler):
 
             if openwrt_host.password:
                 kwargs['password'] = openwrt_host.password
+                logger.warning('Using password is insecure. Consider using ssh keys instead')
 
             ssh_out = cmd_exec.ssh(['sysupgrade', '-b', '/tmp/backup-openwrt.tar.gz'], openwrt_host.host, openwrt_host.user, **kwargs)
 
