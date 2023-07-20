@@ -170,6 +170,8 @@ class UsbackupSnapshot:
         for level in levels:
             report.append(level.get_backup_report())
 
+        self._logger.info("Running report handlers")
+
         for handler in self._report_handlers:
             try:
                 handler.report(report, logger=self._logger)

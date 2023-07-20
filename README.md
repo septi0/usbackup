@@ -78,8 +78,9 @@ USbackup can be used in 3 ways:
 ## Command line arguments
 
 ```
-usbackup [-h] --config CONFIG_FILES [--snapshot SNAPSHOT_NAMES] [--log LOG_FILE] [--log-level LOG_LEVEL] [--service] [--configtest]
+usbackup [-h] --config CONFIG_FILES [--snapshot SNAPSHOT_NAMES] [--log LOG_FILE] [--log-level LOG_LEVEL] [--service] {configtest}
 
+options:
   -h, --help            show this help message and exit
   --config CONFIG_FILES
                         Config file(s) to use. This option is required
@@ -89,11 +90,14 @@ usbackup [-h] --config CONFIG_FILES [--snapshot SNAPSHOT_NAMES] [--log LOG_FILE]
   --log-level LOG_LEVEL
                         Log level. Can be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL
   --service             Run as service. Wake up every minute to check if there are any backups to be performed
-  --configtest          Test config file
+
+Commands:
+  {configtest}
+    configtest          Test configuration file
 ```
 
 ## Configuration file
-For a sample configuration file see `config.conf.sample` file. Aditionally, you can copy the file to `/etc/usbackup/config.conf` or `~/.usbackup/config.conf` and adjust the values to your needs.
+For a sample configuration file see `config.conf.sample` file. Aditionally, you can copy the file to `/etc/usbackup/config.conf`, `/etc/opt/usbackup/config.conf` or `~/.config/usbackup/config.conf` (or where you want as long as you provide the `--config` parameter) and adjust the values to your needs.
 
 - `report_email` - email address to be used when sending the email report. Leave empty to disable email reporting
 - `report_email.from` - email from address to be used in the email report

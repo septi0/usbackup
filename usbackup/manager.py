@@ -29,10 +29,18 @@ class UsbackupManager:
 
     def _parse_config(self, config_files: list[str]) -> dict:
         if not config_files:
-            raise UsbackupConfigError("No config files specified")
+            config_files = [
+                '/etc/usbackup/config.conf',
+                '/etc/opt/usbackup/config.conf',
+                os.path.expanduser('~/.config/usbackup/config.conf'),
+            ]
         
         config_inst = ConfigParser()
         config_inst.read(config_files)
+
+        # check if any config was found
+        if not config_inst.sections():
+            raise UsbackupConfigError("No config found")
 
         config = {}
 

@@ -1,6 +1,3 @@
-class UsbackupError(Exception):
-    pass
-
 class UsbackupConfigError(Exception):
     pass
 

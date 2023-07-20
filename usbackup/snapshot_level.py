@@ -4,7 +4,7 @@ import time
 import datetime
 import re
 import usbackup.cmd_exec as cmd_exec
-from usbackup.exceptions import UsbackupConfigError, UsbackupError
+from usbackup.exceptions import UsbackupConfigError
 from usbackup.backup_handlers.base import BackupHandler
 
 __all__ = ['UsbackupSnapshotLevel']

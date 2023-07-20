@@ -3,21 +3,23 @@ import argparse
 from usbackup.manager import UsbackupManager
 from usbackup.snapshot import UsbackupSnapshot
 from usbackup.snapshot_level import UsbackupSnapshotLevel
-from usbackup.exceptions import UsbackupConfigError
+from usbackup.exceptions import UsbackupConfigError, CmdExecError, ProcessError, HandlerError
 
-APP_VENDOR = "uscentral"
 APP_NAME = "usbackup"
 APP_VERSION = "0.1.8"
 
 def main():
     # get args from command line
     parser = argparse.ArgumentParser(description='Usbackup software')
-    parser.add_argument('--config', dest='config_files', action='append', help='Config file(s) to use. This option is required', required=True)
+    parser.add_argument('--config', dest='config_files', action='append', help='Config file(s) to use. This option is required')
     parser.add_argument('--snapshot', dest='snapshot_names', action='append', help='Snapshot name(s). If none specified, all snapshots will be run')
     parser.add_argument('--log', dest='log_file', help='Log file where to write logs')
-    parser.add_argument('--log-level', dest='log_level', help='Log level. Can be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL')
+    parser.add_argument('--log-level', dest='log_level', help='Log level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], default='INFO')
     parser.add_argument('--service', dest='service', action='store_true', help='Run as service. Wake up every minute to check if there are any backups to be performed')
-    parser.add_argument('--configtest', dest='configtest', action='store_true', help='Test config file')
+
+    subparsers = parser.add_subparsers(title="Commands", dest="command")
+
+    configtest_parser = subparsers.add_parser('configtest', help='Test configuration file')
     
     args = parser.parse_args()
 
@@ -30,7 +32,7 @@ def main():
     options['log_level'] = args.log_level
     options['service'] = args.service
 
-    if args.configtest:
+    if args.command == 'configtest':
         configtest = True
 
     try:
