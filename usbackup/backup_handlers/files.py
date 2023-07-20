@@ -84,7 +84,8 @@ class FilesHandler(BackupHandler):
 
                 dir_src = f'{user}@{host}:{dir_src}'
                 if self._backup_src_remote.password:
-                    kwargs['password'] = self._backup_src_remote.password
+                    kwargs['ssh_port'] = self._backup_src_remote.port
+                    kwargs['ssh_password'] = self._backup_src_remote.password
 
             logger.info(f'Copying "{dir_src}" to "{backup_dst}"')
             report += [f'* "{dir_src}" -> "{backup_dst}"', '']
@@ -105,9 +106,6 @@ class FilesHandler(BackupHandler):
             if self._backup_src_exclude:
                 for exclude_dir in self._backup_src_exclude:
                     options.append(('exclude', exclude_dir))
-
-            if bool(self._backup_src_remote):
-                options.append(f'rsh=ssh -p {self._backup_src_remote.port}')
 
             if self._backup_src_bwlimit:
                 options.append(('bwlimit', str(self._backup_src_bwlimit)))

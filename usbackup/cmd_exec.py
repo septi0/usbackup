@@ -61,16 +61,25 @@ def umount_all(umount_List: list):
     for u in umount_List:
         umount(u)
 
-def rsync(src: str, dst: str, *, options: list = [], password: str = None):
+def rsync(src: str, dst: str, *, options: list = [], ssh_port: int = None, ssh_password: str = None):
     if not src or not dst:
         raise CmdExecError("Source or destination not specified")
 
     cmd_options = parse_cmd_options(options)
 
     cmd_prefix = []
+    ssh_opts = []
 
-    if password:
-        cmd_prefix = ["sshpass", "-p", str(password)]
+    if ssh_port:
+        ssh_opts += ['-p', str(ssh_port)]
+
+    if ssh_password:
+        cmd_prefix += ['sshpass', '-p', str(ssh_password)]
+    else:
+        ssh_opts += ['-o', 'PasswordAuthentication=No', '-o', 'BatchMode=yes']
+
+    if ssh_opts:
+        cmd_options += ['--rsh', f'ssh {" ".join(ssh_opts)}']
 
     return exec_cmd([*cmd_prefix, "rsync", *cmd_options, src, dst])
 
@@ -79,6 +88,40 @@ def tar(dst: str, src: list[str]):
         raise CmdExecError("Source or destination not specified")
 
     return exec_cmd(["tar", "-czf", dst, *src])
+
+def ssh(command: list, host: str, user: str = None, *, port: int = None, password: str = None):
+    if not command or not host:
+        raise CmdExecError("Command or host not specified")
+
+    cmd_prefix = []
+    ssh_opts = []
+
+    if password:
+        cmd_prefix += ['sshpass', '-p', str(password)]
+    else:
+        ssh_opts += ['-o', 'PasswordAuthentication=No', '-o', 'BatchMode=yes']
+
+    if port:
+        ssh_opts += ['-p', str(port)]
+
+    return exec_cmd([*cmd_prefix, 'ssh', *ssh_opts, f'{user}@{host}', *command])
+
+def scp(src: str, dst: str, *, port: int = None, password: str = None):
+    if not src or not dst:
+        raise CmdExecError("Source or destination not specified")
+
+    cmd_prefix = []
+    ssh_opts = []
+
+    if password:
+        cmd_prefix += ['sshpass', '-p', str(password)]
+    else:
+        ssh_opts += ['-o', 'PasswordAuthentication=No', '-o', 'BatchMode=yes']
+
+    if port:
+        ssh_opts += ['-P', str(port)]
+
+    return exec_cmd([*cmd_prefix, 'scp', *ssh_opts, src, dst])
 
 def parse_cmd_options(options: list, *, use_equal: bool = True):
     cmd_options = []

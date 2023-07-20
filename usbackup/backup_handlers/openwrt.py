@@ -43,18 +43,19 @@ class OpenWrtHandler(BackupHandler):
 
             report += [f'* "{openwrt_host.user}@{openwrt_host.host}" -> "{openwrt_dst}"', '']
 
-            cmd_prefix = []
+            kwargs = {}
+            kwargs['port'] = openwrt_host.port
 
             if openwrt_host.password:
-                cmd_prefix += ['sshpass', '-p', str(openwrt_host.password)]
+                kwargs['password'] = openwrt_host.password
 
-            ssh_out = cmd_exec.exec_cmd([*cmd_prefix, 'ssh', '-p', str(openwrt_host.port), f'{openwrt_host.user}@{openwrt_host.host}', 'sysupgrade', '-b', '/tmp/backup-openwrt.tar.gz'])
+            ssh_out = cmd_exec.ssh(['sysupgrade', '-b', '/tmp/backup-openwrt.tar.gz'], openwrt_host.host, openwrt_host.user, **kwargs)
 
             logger.debug(f'ssh output: {ssh_out}')
 
             logger.info(f'Moving backup from "{openwrt_host.user}@{openwrt_host.host}" to backup folder "{openwrt_dst}"')
 
-            scp_out = cmd_exec.exec_cmd([*cmd_prefix, 'scp', '-P', str(openwrt_host.port), f'{openwrt_host.user}@{openwrt_host.host}:/tmp/backup-openwrt.tar.gz', openwrt_dst])
+            scp_out = cmd_exec.scp(f'{openwrt_host.user}@{openwrt_host.host}:/tmp/backup-openwrt.tar.gz', openwrt_dst, **kwargs)
 
             logger.debug(f'scp output: {scp_out}')
 

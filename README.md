@@ -137,6 +137,7 @@ Valid format for remote hosts:
 
 With all the fields except `host` being optional.
 If no user is specified, the `root` user will be used. If no port is specified, the default port will be used for that service. If no password is specified, depending on the service it will either use credentials files or it will try to use the ssh keys (recomended way).
+**Note!** Using passwords is not recommended as they will be stored in plain text in the configuration file, instead use ssh keys for file transfers / openwrt backups and credentials files for mysql backups.
 
 ## Systemd service
 
