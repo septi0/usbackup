@@ -57,13 +57,13 @@ git clone <git-repo>
 
 USbackup can be used in 3 ways:
 
-#### 1. As a package globally
+#### 1. As a package (if installed globally)
 
 ```
 /usr/bin/usbackup --config <config-file>
 ```
 
-#### 2. As a package in a virtualenv
+#### 2. As a package (if installed in a virtualenv)
 
 ```
 <path-to-venv>/bin/usbackup --config <config-file>
