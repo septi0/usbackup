@@ -9,8 +9,6 @@ class Remote:
         self._port: int
         self._password: str
 
-        self._is_remote: bool = False
-
         if remote:
             pattern = r'^(?:(?P<username>[^@]+)@)?(?P<hostname>[^:/]+)(?::(?P<port>\d+))?(?:/(?P<password>.+))?$'
 
@@ -18,8 +16,6 @@ class Remote:
 
             if not match:
                 raise ValueError('Invalid remote string')
-            
-            self._is_remote = True
 
             self._host = match.group('hostname')
             self._user = match.group('username') or default_user
@@ -43,7 +39,7 @@ class Remote:
         return self._password
     
     def __str__(self) -> str:
-        return f"{self._user}@{self._host}:{self._port}"
+        return f"{self._user}@{self._host}"
     
     def __bool__(self) -> bool:
-        return self._is_remote
+        return self._host is not None

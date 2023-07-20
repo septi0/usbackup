@@ -41,22 +41,22 @@ class OpenWrtHandler(BackupHandler):
         for openwrt_host in self._openwrt_hosts:
             logger.info(f'Generating backup archive "/tmp/backup-openwrt.tar.gz" on "{openwrt_host.host}"')
 
-            report += [f'* "{openwrt_host.user}@{openwrt_host.host}" -> "{openwrt_dst}"', '']
+            report += [f'* "{str(openwrt_host)}" -> "{openwrt_dst}"', '']
 
             kwargs = {}
             kwargs['port'] = openwrt_host.port
 
             if openwrt_host.password:
                 kwargs['password'] = openwrt_host.password
-                logger.warning('Using password is insecure. Consider using ssh keys instead')
+                logger.warning('Using password in plain is insecure. Consider using ssh keys instead')
 
             ssh_out = cmd_exec.ssh(['sysupgrade', '-b', '/tmp/backup-openwrt.tar.gz'], openwrt_host.host, openwrt_host.user, **kwargs)
 
             logger.debug(f'ssh output: {ssh_out}')
 
-            logger.info(f'Moving backup from "{openwrt_host.user}@{openwrt_host.host}" to backup folder "{openwrt_dst}"')
+            logger.info(f'Moving backup from "{str(openwrt_host)}" to backup folder "{openwrt_dst}"')
 
-            scp_out = cmd_exec.scp(f'{openwrt_host.user}@{openwrt_host.host}:/tmp/backup-openwrt.tar.gz', openwrt_dst, **kwargs)
+            scp_out = cmd_exec.scp(f'{str(openwrt_host)}:/tmp/backup-openwrt.tar.gz', openwrt_dst, **kwargs)
 
             logger.debug(f'scp output: {scp_out}')
 
