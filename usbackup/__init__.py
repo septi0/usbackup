@@ -10,7 +10,7 @@ APP_VERSION = "0.1.8"
 
 def main():
     # get args from command line
-    parser = argparse.ArgumentParser(description='Usbackup software')
+    parser = argparse.ArgumentParser(description='A simple linux backup tool featuring snapshots, retention policies, backup handlers and report handlers')
     parser.add_argument('--config', dest='config_files', action='append', help='Config file(s) to use. This option is required')
     parser.add_argument('--snapshot', dest='snapshot_names', action='append', help='Snapshot name(s). If none specified, all snapshots will be run')
     parser.add_argument('--log', dest='log_file', help='Log file where to write logs')

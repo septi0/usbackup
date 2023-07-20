@@ -10,7 +10,7 @@ with open("requirements.txt") as f:
 setup(
     name="UsBackup",
     version="0.1.8",
-    description='Usbackup software',
+    description='A simple linux backup tool featuring snapshots, retention policies, backup handlers and report handlers',
     long_description=long_description,
     long_description_content_type="text/markdown",
     license="GPLv3",

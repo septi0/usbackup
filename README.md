@@ -2,7 +2,7 @@
 
 ## Description
 
-UsBackup is a simple backup software that allows files, databases, openwrt configs to be backed up. It is designed to run as a background process and to be as simple as possible.
+**UsBackup** is a simple backup software that allows files, databases, openwrt configs to be backed up. It is designed to run as a background process and to be as simple as possible.
 
 It features a simple configuration file that allows you to configure different snapshots, snapshot levels, the backup sources and the backup destinations. It also features a simple reporting system that can send email or slack reports after the backup is finished eighter globally or for each snapshot.
 
@@ -99,6 +99,9 @@ Commands:
 ## Configuration file
 For a sample configuration file see `config.conf.sample` file. Aditionally, you can copy the file to `/etc/usbackup/config.conf`, `/etc/opt/usbackup/config.conf` or `~/.config/usbackup/config.conf` (or where you want as long as you provide the `--config` parameter) and adjust the values to your needs.
 
+Each section in the configuration file is a **snapshot**. These sections are independent of each other and each needs to be configured separately. The only exception is the `[GLOBALS]` section which is used to configure global settings that will be used by all the snapshots.
+
+Sections properties:
 - `report_email` - email address to be used when sending the email report. Leave empty to disable email reporting
 - `report_email.from` - email from address to be used in the email report
 - `report_email.command` - command to be used when sending the email report. Default: sendmail -t
