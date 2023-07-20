@@ -7,9 +7,9 @@ import usbackup.cmd_exec as cmd_exec
 from usbackup.exceptions import UsbackupConfigError
 from usbackup.backup_handlers.base import BackupHandler
 
-__all__ = ['UsbackupSnapshotLevel']
+__all__ = ['UsBackupSnapshotLevel']
 
-class UsbackupSnapshotLevel:
+class UsBackupSnapshotLevel:
     def __init__(self, level_data: str, *, backup_dst: str, handlers: list, logger: logging.Logger) -> None:
         self._handlers: list[BackupHandler] = handlers
 

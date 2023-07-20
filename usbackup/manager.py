@@ -5,12 +5,12 @@ import asyncio
 import time
 import signal
 from configparser import ConfigParser
-from usbackup.snapshot import UsbackupSnapshot
+from usbackup.snapshot import UsBackupSnapshot
 from usbackup.exceptions import UsbackupConfigError
 
-__all__ = ['UsbackupManager']
+__all__ = ['UsBackupManager']
 
-class UsbackupManager:
+class UsBackupManager:
     def __init__(self, params: dict) -> None:
         self._service: bool = params.get('service', False)
         self._pid_file: str = "/tmp/usbackup.pid"
@@ -19,7 +19,7 @@ class UsbackupManager:
         config = self._parse_config(params.get('config_files'))
 
         self._logger: logging.Logger = self._gen_logger(params.get('log_file', ''), params.get('log_level', 'INFO'))
-        self._snapshots: list[UsbackupSnapshot] = self._gen_snapshots(params.get('snapshot_names'), config)
+        self._snapshots: list[UsBackupSnapshot] = self._gen_snapshots(params.get('snapshot_names'), config)
 
     def run(self) -> None:
         if self._service:
@@ -83,7 +83,7 @@ class UsbackupManager:
 
         return logger
 
-    def _gen_snapshots(self, snapshot_names: list[str], config: dict) -> list[UsbackupSnapshot]:
+    def _gen_snapshots(self, snapshot_names: list[str], config: dict) -> list[UsBackupSnapshot]:
         snapshots_names = []
         config_keys = list(config.keys())
 
@@ -114,7 +114,7 @@ class UsbackupManager:
             snapshot_config = config.get(snapshot_name)
             snapshot_config = {**global_config, **snapshot_config}
 
-            snapshots.append(UsbackupSnapshot(snapshot_name, snapshot_config, logger=self._logger))
+            snapshots.append(UsBackupSnapshot(snapshot_name, snapshot_config, logger=self._logger))
 
         return snapshots
 

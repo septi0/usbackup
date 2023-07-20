@@ -8,7 +8,7 @@ with open("requirements.txt") as f:
     requirements = [line.strip() for line in f]
 
 setup(
-    name="usbackup",
+    name="UsBackup",
     version="0.1.8",
     description='Usbackup software',
     long_description=long_description,

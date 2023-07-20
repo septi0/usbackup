@@ -1,8 +1,8 @@
 import sys
 import argparse
-from usbackup.manager import UsbackupManager
-from usbackup.snapshot import UsbackupSnapshot
-from usbackup.snapshot_level import UsbackupSnapshotLevel
+from usbackup.manager import UsBackupManager
+from usbackup.snapshot import UsBackupSnapshot
+from usbackup.snapshot_level import UsBackupSnapshotLevel
 from usbackup.exceptions import UsbackupConfigError, CmdExecError, ProcessError, HandlerError
 
 APP_NAME = "usbackup"
@@ -36,7 +36,7 @@ def main():
         configtest = True
 
     try:
-        usbackup = UsbackupManager(options)
+        usbackup = UsBackupManager(options)
     except UsbackupConfigError as e:
         print(f"Config error: {e}\nCheck documentation for more information on how to configure usbackup snapshots")
         sys.exit(2)

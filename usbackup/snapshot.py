@@ -4,14 +4,14 @@ import shlex
 import usbackup.cmd_exec as cmd_exec
 import usbackup.backup_handlers as backup_handlers
 import usbackup.report_handlers as report_handlers
-from usbackup.snapshot_level import UsbackupSnapshotLevel
+from usbackup.snapshot_level import UsBackupSnapshotLevel
 from usbackup.exceptions import UsbackupConfigError
 from usbackup.backup_handlers.base import BackupHandler
 from usbackup.report_handlers.base import ReportHandler
 
-__all__ = ['UsbackupSnapshot']
+__all__ = ['UsBackupSnapshot']
 
-class UsbackupSnapshot:
+class UsBackupSnapshot:
     def __init__(self, name: str, config: dict, *, logger: logging.Logger):
         self._name: str = name
         self._logger: logging.Logger = logger.getChild(self._name)
@@ -20,7 +20,7 @@ class UsbackupSnapshot:
 
         self._mountpoints: list[str] = shlex.split(config.get("mount", ""))
         self._backup_dst: str = self._gen_backup_dst(config)
-        self._levels: list[UsbackupSnapshotLevel] = self._gen_levels(config)
+        self._levels: list[UsBackupSnapshotLevel] = self._gen_levels(config)
         self._report_handlers: list[ReportHandler] = self._gen_report_handlers(config)
         self._pre_backup_cmd: list[str] = shlex.split(config.get("pre_backup_cmd", ""))
         self._post_backup_cmd: list[str] = shlex.split(config.get("post_backup_cmd", ""))
@@ -88,7 +88,7 @@ class UsbackupSnapshot:
         
         return backup_dst
 
-    def _gen_levels(self, config: dict) -> list[UsbackupSnapshotLevel]:
+    def _gen_levels(self, config: dict) -> list[UsBackupSnapshotLevel]:
         handlers = []
 
         for backup_handler in backup_handlers.list:
@@ -113,7 +113,7 @@ class UsbackupSnapshot:
             if not level_data:
                 continue
 
-            levels.append(UsbackupSnapshotLevel(level_data, backup_dst=self._backup_dst, handlers=handlers, logger=self._logger))
+            levels.append(UsBackupSnapshotLevel(level_data, backup_dst=self._backup_dst, handlers=handlers, logger=self._logger))
 
         return levels
 

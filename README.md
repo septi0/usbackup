@@ -1,8 +1,8 @@
-# USbackup
+# UsBackup
 
 ## Description
 
-This is a simple backup software that allows files, databases, openwrt configs to be backed up. It is designed to run as a background process and to be as simple as possible.
+UsBackup is a simple backup software that allows files, databases, openwrt configs to be backed up. It is designed to run as a background process and to be as simple as possible.
 
 It features a simple configuration file that allows you to configure different snapshots, snapshot levels, the backup sources and the backup destinations. It also features a simple reporting system that can send email or slack reports after the backup is finished eighter globally or for each snapshot.
 
@@ -55,7 +55,7 @@ git clone <git-repo>
 
 ## Usage
 
-USbackup can be used in 3 ways:
+UsBackup can be used in 3 ways:
 
 #### 1. As a package (if installed globally)
 
@@ -137,7 +137,7 @@ If no user is specified, the `root` user will be used. If no port is specified, 
 
 ## Systemd service
 
-To run USbackup as a service, have it start on boot and restart on failure, create a systemd service file in `/etc/systemd/system/usbackup.service` and copy the content from `usbackup.service.sample` file, adjusting the paths to your needs for `ExecStart` parameter.
+To run UsBackup as a service, have it start on boot and restart on failure, create a systemd service file in `/etc/systemd/system/usbackup.service` and copy the content from `usbackup.service.sample` file, adjusting the paths to your needs for `ExecStart` parameter.
 
 After that, run the following commands:
 
