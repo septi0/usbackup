@@ -2,7 +2,7 @@ import logging
 import subprocess
 from usbackup.exceptions import CmdExecError, ProcessError
 
-__all__ = ['exec_cmd', 'mkdir', 'move', 'remove', 'mount', 'umount', 'rsync']
+__all__ = ['exec_cmd', 'mkdir', 'copy', 'move', 'remove', 'mount', 'mount_all', 'umount', 'umount_all', 'rsync', 'tar']
 
 def exec_cmd(cmd: list, *, input: str = None, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
     logging.debug(f'Executing command: {[*cmd]}')
