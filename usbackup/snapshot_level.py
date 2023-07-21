@@ -26,8 +26,6 @@ class UsBackupSnapshotLevel:
         self._backup_dst: str = os.path.join(self._label_path, "backup.1")
         self._backup_dst_link: str = self._gen_backup_dst_link()
 
-        self._logger.debug(f'Parsed level data: {parsed_level_data}')
-
     @property
     def name(self) -> str:
         return self._name
@@ -165,6 +163,7 @@ class UsBackupSnapshotLevel:
 
         for (schedule, segment) in zip(self._options, run_time):
             if schedule != '*' and schedule != segment:
+                self._logger.debug(f'Backup not needed. Schedule {schedule} does not match {segment}')
                 return False
 
         if not last_backup:
@@ -174,6 +173,7 @@ class UsBackupSnapshotLevel:
         last_backup_time = time.strftime('%M', time.localtime(last_backup)).split()
 
         if last_backup_time[0] == run_time[0]:
+            self._logger.debug(f'Backup not needed. Last backup was done at minute {last_backup_time[0]}')
             return False
 
         return True
@@ -191,7 +191,10 @@ class UsBackupSnapshotLevel:
             return True
 
         # check if latest version is within the age interval
-        if time.time() - last_backup < target_age:
+        last_backup_age = time.time() - last_backup
+
+        if last_backup_age < target_age:
+            self._logger.debug(f'Backup not needed. Last backup is within the age interval ({last_backup_age} < {target_age})')
             return False
 
         return True
