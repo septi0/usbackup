@@ -95,10 +95,7 @@ class UsBackupManager:
             
                 snapshots_names.append(name)
         else:
-            snapshots_names = config_keys
-
-        if 'GLOBALS' in snapshots_names:
-            snapshots_names.remove('GLOBALS')
+            snapshots_names = [name for name in config_keys if name != 'GLOBALS']
 
         if not snapshots_names:
             raise UsbackupConfigError("No snapshots found in config file")
