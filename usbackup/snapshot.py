@@ -60,7 +60,7 @@ class UsBackupSnapshot:
         # backup levels that need backup
         for level in levels_to_backup:
             try:
-                level.backup()
+                level.backup(run_time)
             except (Exception) as e:
                 self._logger.exception(f"{level.name} level exception: {e}", exc_info=True)
 

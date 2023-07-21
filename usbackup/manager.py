@@ -176,7 +176,9 @@ class UsBackupManager:
         # set _running to current timestamp
         self._running = time.time()
 
-        self._logger.debug(f'Starting backup at {self._running}')
+        formatted_time = time.strftime("%Y-%m-%d %H:%M", time.localtime(self._running))
+
+        self._logger.debug(f'Checking backups for {formatted_time} time')
 
         for snapshot in self._snapshots:
             try:
