@@ -179,6 +179,8 @@ class UsBackupManager:
         # set _running to current timestamp
         self._running = time.time()
 
+        self._logger.debug(f'Starting backup at {self._running}')
+
         for snapshot in self._snapshots:
             try:
                 snapshot.backup(self._running, not self._service)
@@ -186,6 +188,8 @@ class UsBackupManager:
                 self._logger.exception(f"{snapshot.name} snapshot exception: {e}", exc_info=True)
             except (KeyboardInterrupt) as e:
                 snapshot.cleanup()
+                self._running = False
+
                 raise e
             
             snapshot.cleanup()

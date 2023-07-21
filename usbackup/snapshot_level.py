@@ -26,6 +26,8 @@ class UsBackupSnapshotLevel:
         self._backup_dst: str = os.path.join(self._label_path, "backup.1")
         self._backup_dst_link: str = self._gen_backup_dst_link()
 
+        self._logger.debug(f'Parsed level data: {parsed_level_data}')
+
     @property
     def name(self) -> str:
         return self._name
