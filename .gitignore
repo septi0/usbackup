@@ -1,4 +1,9 @@
-__pycache__/
-*.egg-info/
 build/
 obsolete/
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.DS_Store
+.env
+venv/

@@ -29,7 +29,7 @@ Files can be backed up from local storage or from remote storage, also they can 
 - rsync
 - mysqldump
 - tar
-- sshpass
+- sshpass (if using passwords for remote hosts - not recommended)
 
 ## Installation
 
@@ -97,11 +97,11 @@ Commands:
 ```
 
 ## Configuration file
-For a sample configuration file see `config.conf.sample` file. Aditionally, you can copy the file to `/etc/usbackup/config.conf`, `/etc/opt/usbackup/config.conf` or `~/.config/usbackup/config.conf` (or where you want as long as you provide the `--config` parameter) and adjust the values to your needs.
+For a sample configuration file see `config.sample.conf` file. Aditionally, you can copy the file to `/etc/usbackup/config.conf`, `/etc/opt/usbackup/config.conf` or `~/.config/usbackup/config.conf` (or where you want as long as you provide the `--config` parameter) and adjust the values to your needs.
 
 Each section in the configuration file is a **snapshot**. These sections are independent of each other and each needs to be configured separately. The only exception is the `[GLOBALS]` section which is used to configure global settings that will be used by all the snapshots.
 
-Sections properties:
+Section properties:
 - `report_email` - email address to be used when sending the email report. Leave empty to disable email reporting
 - `report_email.from` - email from address to be used in the email report
 - `report_email.command` - command to be used when sending the email report. Default: sendmail -t
@@ -114,7 +114,7 @@ Sections properties:
   - `replicas` - number of replicas to be kept. Must be a number
   - `trigger_type` - what type of even will trigger the level backup. Must be one of: schedule, age, on_demand
   - `options` - options for the trigger type.
-    - `schedule` - cron expression. Example: 0 0 * * * (every day at midnight)
+    - `schedule` - any cron expression. Example: 0 0 * * * (every day at midnight)
     - `age` - number followed by m, h, d (minutes, hours, days). Example: 1d
     - `on_demand` - no options
 - `backup_files` - folders to be backed up
@@ -132,16 +132,17 @@ Sections properties:
 Valid format for remote hosts:
 
 ```
-<user>@<host>:<port>:<password>
+<user>@<host>:<port>/<password>
 ```
 
 With all the fields except `host` being optional.
 If no user is specified, the `root` user will be used. If no port is specified, the default port will be used for that service. If no password is specified, depending on the service it will either use credentials files or it will try to use the ssh keys (recomended way).
-**Note!** Using passwords is not recommended as they will be stored in plain text in the configuration file, instead use ssh keys for file transfers / openwrt backups and credentials files for mysql backups.
+
+**Note!** Using passwords is not recommended as they will be stored as plain text in the configuration file, instead use ssh keys for file transfers / openwrt backups and credentials files for mysql backups.
 
 ## Systemd service
 
-To run UsBackup as a service, have it start on boot and restart on failure, create a systemd service file in `/etc/systemd/system/usbackup.service` and copy the content from `usbackup.service.sample` file, adjusting the paths to your needs for `ExecStart` parameter.
+To run UsBackup as a service, have it start on boot and restart on failure, create a systemd service file in `/etc/systemd/system/usbackup.service` and copy the content from `usbackup.sample.service` file, adjusting the paths to your needs for `ExecStart` parameter.
 
 After that, run the following commands:
 

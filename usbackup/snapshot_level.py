@@ -130,12 +130,47 @@ class UsBackupSnapshotLevel:
         if type == 'schedule':
             if len(options) != 5:
                 raise UsbackupConfigError("Invalid schedule specified")
+            
+            parsed_options = []
 
             for schedule in options:
-                if not schedule.isdigit() and schedule != '*':
+                if schedule == '*':
+                    opt = ('any', None)
+
+                elif schedule.isdigit():
+                    opt = ('fixed', int(schedule))
+
+                elif schedule.startswith('*/'):
+                    value = schedule[2:]
+
+                    if not value.isdigit():
+                        raise UsbackupConfigError("Invalid schedule specified")
+
+                    opt = ('step', int(value))
+
+                elif '-' in schedule:
+                    (start, end) = schedule.split('-')
+
+                    if not start.isdigit() or not end.isdigit():
+                        raise UsbackupConfigError("Invalid schedule specified")
+
+                    opt = ('range', (int(start), int(end)))
+
+                elif ',' in schedule:
+                    values = schedule.split(',')
+
+                    for value in values:
+                        if not value.isdigit():
+                            raise UsbackupConfigError("Invalid schedule specified")
+
+                    opt = ('list', tuple([int(x) for x in values]))
+
+                elif not opt:
                     raise UsbackupConfigError("Invalid schedule specified")
 
-            options = tuple(options)
+                parsed_options.append(opt)
+
+            options = tuple(parsed_options)
         elif type == 'age':
             if len(options) < 1:
                 raise UsbackupConfigError("No age interval specified")
@@ -146,7 +181,9 @@ class UsBackupSnapshotLevel:
             if not age_interval:
                 raise UsbackupConfigError("Invalid age interval specified")
 
-            options = tuple(age_interval.groups())
+            groups = age_interval.groups()
+
+            options = tuple(int(groups[0]), groups[1])
 
         return (name, replicas, type, options)
 
@@ -164,21 +201,51 @@ class UsBackupSnapshotLevel:
     def _check_backup_needed_by_schedule(self, last_backup_time: float, run_time: float) -> bool:
         # check if run time matches schedule
         parsed_run_time = time.strftime('%M %H %d %m %w', time.localtime(run_time)).split()
+        schedule_match = True
 
-        for (schedule, segment) in zip(self._options, parsed_run_time):
-            if schedule != '*' and schedule != segment:
-                self._logger.debug(f'Backup not needed. Schedule {schedule} does not match {segment}')
-                return False
+        for (config_segment, run_time_segment) in zip(self._options, parsed_run_time):
+            run_time_segment = int(run_time_segment)
+
+            if config_segment[0] == 'any':
+                continue
+
+            # handle fixed number syntax
+            if config_segment[0] == 'fixed' and config_segment[1] != run_time_segment:
+                schedule_match = False
+                break
+
+            # handle */5 syntax
+            if config_segment[0] == 'step':
+                if run_time_segment % config_segment[1] != 0:
+                    schedule_match = False
+                    break
+
+            # handle 1-5 syntax
+            if config_segment[0] == 'range':
+                (start, end) = config_segment[1]
+
+                if not start <= run_time_segment <= end:
+                    schedule_match = False
+                    break
+
+            # handle 1,2,3 syntax
+            if config_segment[0] == 'list':
+                if not run_time_segment in config_segment[1]:
+                    schedule_match = False
+                    break
+
+        if not schedule_match:
+            self._logger.debug(f'Backup not needed. Schedule {self._options} does not match {parsed_run_time}')
+            return False
 
         if not last_backup_time:
             return True
 
         # make sure last backup is not too recent
-        parsed_last_backup_time = time.strftime(
-            '%M %H %d %m %w', time.localtime(last_backup_time)).split()
+        parsed_last_backup_time = time.strftime('%M %H %d %m %w', time.localtime(last_backup_time)).split()
 
         if parsed_last_backup_time == parsed_run_time:
-            self._logger.debug(f'Backup not needed. Last backup was done at {last_backup_time}')
+            self._logger.debug(f'Backup not needed. Last backup was done at {parsed_last_backup_time}')
             return False
 
         return True
@@ -190,7 +257,7 @@ class UsBackupSnapshotLevel:
             'd': 60 * 60 * 24,
         }
 
-        target_age = int(self._options[0]) * age_intervals[self._options[1].lower()]
+        target_age = self._options[0] * age_intervals[self._options[1].lower()]
 
         if not last_backup_time:
             return True
