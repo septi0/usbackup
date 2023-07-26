@@ -2,7 +2,7 @@
 
 ## Description
 
-**UsBackup** is a simple backup software that allows files, databases, openwrt configs to be backed up. It is designed to run as a background process and to be as simple as possible.
+**UsBackup** is a backup software that allows files, databases, openwrt configs to be backed up. It is designed to run as a background process and to be as simple as possible.
 
 It features a simple configuration file that allows you to configure different snapshots, snapshot levels, the backup sources and the backup destinations. It also features a simple reporting system that can send email or slack reports after the backup is finished eighter globally or for each snapshot.
 
@@ -83,7 +83,7 @@ usbackup [-h] --config CONFIG_FILES [--snapshot SNAPSHOT_NAMES] [--log LOG_FILE]
 options:
   -h, --help            show this help message and exit
   --config CONFIG_FILES
-                        Config file(s) to use. This option is required
+                        Config file(s) to use
   --snapshot SNAPSHOT_NAMES
                         Snapshot name(s). If none specified, all snapshots will be run
   --log LOG_FILE        Log file where to write logs

@@ -10,7 +10,7 @@ with open("requirements.txt") as f:
 setup(
     name="UsBackup",
     version="0.1.8",
-    description='A simple linux backup tool featuring snapshots, retention policies, backup handlers and report handlers',
+    description='A linux backup tool featuring snapshots, retention policies, backup handlers and report handlers',
     long_description=long_description,
     long_description_content_type="text/markdown",
     license="GPLv3",
@@ -26,6 +26,7 @@ setup(
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
+        "Operating System :: POSIX :: Linux",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Topic :: System :: Archiving :: Backup",
         "Topic :: System :: Archiving :: Mirroring",

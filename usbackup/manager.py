@@ -161,8 +161,10 @@ class UsBackupManager:
             for task in tasks:
                 if task.cancelled():
                     continue
+
                 if task.exception() is not None:
                     raise task.exception()
+                
             loop.close()
     
     def _run_once(self) -> None:

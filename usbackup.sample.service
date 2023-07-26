@@ -1,12 +1,11 @@
 [Unit]
-Description=usbackup
-After=network.target
+Description=UsBackup
 
 [Service]
 Type=simple
 User=root
 Group=root
-ExecStart=/usr/bin/usbackup --config ~/usbackup/config.conf --service
+ExecStart=/usr/bin/usbackup --log=/var/log/usbackup/usbackup.log --service
 Restart=always
 RestartSec=5
 
