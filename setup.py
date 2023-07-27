@@ -1,5 +1,6 @@
 
 from setuptools import setup
+from usbackup.info import APP_NAME, APP_VERSION, APP_DESCRIPTION
 
 with open("README.md", "r") as f:
     long_description = f.read()
@@ -8,9 +9,9 @@ with open("requirements.txt") as f:
     requirements = [line.strip() for line in f]
 
 setup(
-    name="UsBackup",
-    version="0.1.8",
-    description='A linux backup tool featuring snapshots, retention policies, backup handlers and report handlers',
+    name=APP_NAME,
+    version=APP_VERSION,
+    description=APP_DESCRIPTION,
     long_description=long_description,
     long_description_content_type="text/markdown",
     license="GPLv3",

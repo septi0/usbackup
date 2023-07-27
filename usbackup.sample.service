@@ -5,7 +5,7 @@ Description=UsBackup
 Type=simple
 User=root
 Group=root
-ExecStart=/usr/bin/usbackup --log=/var/log/usbackup/usbackup.log --service
+ExecStart=/usr/bin/usbackup --log=/var/log/usbackup/usbackup.log backup --service
 Restart=always
 RestartSec=5
 

@@ -1,5 +1,6 @@
 import logging
 import subprocess
+import shlex
 from usbackup.exceptions import CmdExecError, ProcessError
 
 __all__ = ['exec_cmd', 'mkdir', 'copy', 'move', 'remove', 'mount', 'mount_all', 'umount', 'umount_all', 'rsync', 'tar']
@@ -10,10 +11,10 @@ def exec_cmd(cmd: list, *, input: str = None, stdout=subprocess.PIPE, stderr=sub
     out = subprocess.run([*cmd], input=input, stdout=stdout, stderr=stderr)
 
     if out.returncode != 0:
-        raise ProcessError(out.stderr.decode('utf-8'), out.returncode)
+        raise ProcessError(out.stderr.decode('utf-8').strip(), out.returncode)
 
     if out.stdout:
-        return out.stdout.decode('utf-8')
+        return out.stdout.decode('utf-8').strip()
     
     return ''
 
@@ -122,6 +123,15 @@ def scp(src: str, dst: str, *, port: int = None, password: str = None):
         ssh_opts += ['-P', str(port)]
 
     return exec_cmd([*cmd_prefix, 'scp', *ssh_opts, src, dst])
+
+def du(path: str, *, match: str = None):
+    if not path:
+        raise CmdExecError("Path not specified")
+    
+    if match:
+        return exec_cmd(["find", path, "-maxdepth", '1', "-name", match, '-exec', 'du', '-sh', '{}', '+'])
+    else:
+        return exec_cmd(["du", "-sh", path])
 
 def parse_cmd_options(options: list, *, use_equal: bool = True):
     cmd_options = []

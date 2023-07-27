@@ -107,6 +107,34 @@ class UsBackupSnapshotLevel:
 
         return report
     
+    def du(self) -> list[str]:
+        if not os.path.isdir(self._label_path):
+            return []
+
+        usage = cmd_exec.du(self._label_path, match='backup.*')
+
+        if not usage:
+            return []
+        
+        output = []
+        
+        usage = usage.strip().split('\n')
+
+        for row in usage:
+            row = re.split(r'\s+', row, maxsplit=1)
+
+            if len(row) != 2:
+                continue
+
+            version = os.path.basename(row[1])
+
+            output.append((version, row[0]))
+
+        # sort by version
+        output.sort(key=lambda x: x[0])
+
+        return output
+    
     def _parse_level_data(self, level_data: str) -> tuple:
         level = level_data.strip().split()
 
@@ -183,7 +211,7 @@ class UsBackupSnapshotLevel:
 
             groups = age_interval.groups()
 
-            options = tuple(int(groups[0]), groups[1])
+            options = (int(groups[0]), groups[1])
 
         return (name, replicas, type, options)
 

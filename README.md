@@ -26,6 +26,7 @@ Files can be backed up from local storage or from remote storage, also they can 
 
 ## Software requirements
 
+- python3
 - rsync
 - mysqldump
 - tar
@@ -33,7 +34,7 @@ Files can be backed up from local storage or from remote storage, also they can 
 
 ## Installation
 
-### 1. As a package
+#### 1. As a package
 
 ```
 pip install --upgrade <git-repo>
@@ -47,7 +48,7 @@ cd <git-repo>
 python setup.py install
 ```
 
-### 2. As a standalone script
+#### 2. As a standalone script
 
 ```
 git clone <git-repo>
@@ -60,43 +61,49 @@ UsBackup can be used in 3 ways:
 #### 1. As a package (if installed globally)
 
 ```
-/usr/bin/usbackup --config <config-file>
+/usr/bin/usbackup <parameters>
 ```
 
 #### 2. As a package (if installed in a virtualenv)
 
 ```
-<path-to-venv>/bin/usbackup --config <config-file>
+<path-to-venv>/bin/usbackup <parameters>
 ```
 
 #### 3. As a standalone script
 
 ```
-<git-clone-dir>/run.py --config <config-file>
+<git-clone-dir>/run.py <parameters>
 ```
+
+Check "Command line arguments" section for more information about the available parameters.
 
 ## Command line arguments
 
 ```
-usbackup [-h] --config CONFIG_FILES [--snapshot SNAPSHOT_NAMES] [--log LOG_FILE] [--log-level LOG_LEVEL] [--service] {configtest}
+usbackup [-h] [--config CONFIG_FILES] [--log LOG_FILE] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--version] {configtest,du,backup} ...
 
 options:
   -h, --help            show this help message and exit
   --config CONFIG_FILES
-                        Config file(s) to use
-  --snapshot SNAPSHOT_NAMES
-                        Snapshot name(s). If none specified, all snapshots will be run
+                        Alternative config file(s)
   --log LOG_FILE        Log file where to write logs
-  --log-level LOG_LEVEL
-                        Log level. Can be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL
-  --service             Run as service. Wake up every minute to check if there are any backups to be performed
+  --log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
+                        Log level
+  --version             show program's version number and exit
 
 Commands:
-  {configtest}
-    configtest          Test configuration file
+  {configtest,du,backup}
+    configtest          Test configuration file (based on provided snapshots)
+    du                  Show disk usage of snapshots
+    backup              Backup snapshots
+      options:
+        -h, --help            show this help message and exit
+        --service             Run as service. Wake up every minute to check if there are any backups to be performed
 ```
 
 ## Configuration file
+
 For a sample configuration file see `config.sample.conf` file. Aditionally, you can copy the file to `/etc/usbackup/config.conf`, `/etc/opt/usbackup/config.conf` or `~/.config/usbackup/config.conf` (or where you want as long as you provide the `--config` parameter) and adjust the values to your needs.
 
 Each section in the configuration file is a **snapshot**. These sections are independent of each other and each needs to be configured separately. The only exception is the `[GLOBALS]` section which is used to configure global settings that will be used by all the snapshots.
@@ -142,7 +149,7 @@ If no user is specified, the `root` user will be used. If no port is specified, 
 
 ## Systemd service
 
-To run UsBackup as a service, have it start on boot and restart on failure, create a systemd service file in `/etc/systemd/system/usbackup.service` and copy the content from `usbackup.sample.service` file, adjusting the paths to your needs for `ExecStart` parameter.
+To run UsBackup as a service, have it start on boot and restart on failure, create a systemd service file in `/etc/systemd/system/usbackup.service` and copy the content from `usbackup.sample.service` file, adjusting the `ExecStart` parameter based on the installation method.
 
 After that, run the following commands:
 
@@ -152,14 +159,10 @@ systemctl enable usbackup.service
 systemctl start usbackup.service
 ```
 
-#### 1. Example ExecStart parameter if installed globally and with config file in /etc/usbackup/
+## Disclaimer
 
-```
-ExecStart=/usr/bin/usbackup --config /etc/usbackup/config.conf --service
-```
+This software is provided as is, without any warranty. Use at your own risk. The author is not responsible for any damage caused by this software.
 
-#### 2. Example ExecStart parameter if installed in a virtualenv and with config file in /home/<user>/.usbackup/
+## License
 
-```
-ExecStart=[/path/to/venv]/bin/usbackup --config /home/<user>/.usbackup/config.conf --service
-```
+This software is licensed under the GNU GPL v3 license. See the LICENSE file for more information.

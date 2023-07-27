@@ -78,6 +78,20 @@ class UsBackupSnapshot:
             handler(*args, **kwargs)
 
         self._cleanup_jobs = []
+
+    def du(self) -> dict:
+        du = {}
+
+        # mount all mountpoints
+        self._mount_mountpoints(self._mountpoints)
+
+        for level in self._levels:
+            usages = level.du()
+
+            if usages:
+                du[level.name] = usages
+
+        return du
     
     def _gen_backup_dst(self, config: dict) -> str:
         backup_dst = config.get("destination")

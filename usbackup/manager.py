@@ -12,7 +12,6 @@ __all__ = ['UsBackupManager']
 
 class UsBackupManager:
     def __init__(self, params: dict) -> None:
-        self._service: bool = params.get('service', False)
         self._pid_file: str = "/tmp/usbackup.pid"
         self._running: bool = False
 
@@ -21,11 +20,26 @@ class UsBackupManager:
         self._logger: logging.Logger = self._gen_logger(params.get('log_file', ''), params.get('log_level', 'INFO'))
         self._snapshots: list[UsBackupSnapshot] = self._gen_snapshots(params.get('snapshot_names'), config)
 
-    def run(self) -> None:
-        if self._service:
+    def backup(self, *, service: bool = False) -> None:
+        if service:
             self._run_service()
         else:
             self._run_once()
+
+    def du(self) -> dict:
+        self._logger.debug(f'Checking disk usage of snapshots')
+
+        snapshot_usage = {}
+
+        for snapshot in self._snapshots:
+            usages = snapshot.du()
+
+            if usages:
+                snapshot_usage[snapshot.name] = usages
+
+            snapshot.cleanup()
+
+        return snapshot_usage
 
     def _parse_config(self, config_files: list[str]) -> dict:
         if not config_files:
@@ -137,7 +151,7 @@ class UsBackupManager:
 
         async def run_service():
             while True:
-                self._do_backup()
+                self._do_backup(service=True)
                 await asyncio.sleep(60)
 
         try:
@@ -170,7 +184,7 @@ class UsBackupManager:
     def _run_once(self) -> None:
         self._do_backup()
 
-    def _do_backup(self) -> None:
+    def _do_backup(self, *, service = False) -> None:
         if self._running:
             logging.warning("Previous backup is still running")
             return
@@ -184,7 +198,7 @@ class UsBackupManager:
 
         for snapshot in self._snapshots:
             try:
-                snapshot.backup(self._running, not self._service)
+                snapshot.backup(self._running, not service)
             except (Exception) as e:
                 self._logger.exception(f"{snapshot.name} snapshot exception: {e}", exc_info=True)
             except (KeyboardInterrupt) as e:
