@@ -223,19 +223,41 @@ class UsBackupManager:
         output = ''
 
         for snapshot_name, snapshot_data in snapshot_usage.items():
-            output += f"\n{snapshot_name}:\n"
+            output += f"{snapshot_name}:\n"
+            snapshot_prefix = ''
 
             if 'error' in snapshot_data:
-                output += f"  Error: {snapshot_data['error']}\n"
+                output += f"{snapshot_prefix}└── Error:{snapshot_data['error']}\n\n"
                 continue
 
             if not 'usage' in snapshot_data:
                 continue
 
+            last_level = list(snapshot_data['usage'].keys())[-1]
+
             for level, versions in snapshot_data['usage'].items():
-                output += f"  {level}:\n"
+                # check if last loop iteration
+                if level != last_level:
+                    output += f"{snapshot_prefix}├──{level}:\n"
+                    level_prefix = '│  '
+                else:
+                    output += f"{snapshot_prefix}└──{level}:\n"
+                    level_prefix = '   '
+
+                last_version = list(versions)[-1][0]
 
                 for (version, size) in versions:
-                    output += f"    {version}: {size}\n"
+                    # check if last loop iteration
+                    if version != last_version:
+                        version_prefix = '├── '
+                        extra_nl = False
+                    else:
+                        version_prefix = '└── '
+                        extra_nl = True
+
+                    output += f"{snapshot_prefix}{level_prefix}{version_prefix}{version}: {size}\n"
+
+                    if extra_nl:
+                        output += f'{snapshot_prefix}{level_prefix}\n'
 
         return output

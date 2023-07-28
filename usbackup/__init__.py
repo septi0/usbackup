@@ -52,7 +52,7 @@ def main():
         print("Config OK")
         sys.exit(0)
     elif args.command == 'du':
-        print("Checking disk usage of snapshots. This may take a while...")
+        print("Checking disk usage of snapshots. This may take a while...\n")
         print(usbackup.du(format='string'))
         sys.exit(0)
     elif args.command == 'backup':
