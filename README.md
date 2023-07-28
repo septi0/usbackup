@@ -23,6 +23,8 @@ Files can be backed up from local storage or from remote storage, also they can 
 - Archive backup
 - Email reporting
 - Slack reporting
+- Pre / post backup commands
+- Snapshots disk usage
 
 ## Software requirements
 
