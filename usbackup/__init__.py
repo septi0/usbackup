@@ -4,17 +4,17 @@ from usbackup.manager import UsBackupManager
 from usbackup.snapshot import UsBackupSnapshot
 from usbackup.snapshot_level import UsBackupSnapshotLevel
 from usbackup.exceptions import UsbackupConfigError, CmdExecError, ProcessError, HandlerError
-from usbackup.info import APP_NAME, APP_VERSION, APP_DESCRIPTION
+from usbackup.info import __app_name__, __version__, __description__, __author__, __author_email__, __author_url__, __license__
 
 def main():
     # get args from command line
-    parser = argparse.ArgumentParser(description=APP_DESCRIPTION)
+    parser = argparse.ArgumentParser(description=__description__)
     
     parser.add_argument('--config', dest='config_files', action='append', help='Alternative config file(s)')
     parser.add_argument('--snapshot', dest='snapshot_names', action='append', help='Snapshot name(s). If none specified, all snapshots will be backed up')
     parser.add_argument('--log', dest='log_file', help='Log file where to write logs')
     parser.add_argument('--log-level', dest='log_level', help='Log level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], default='INFO')
-    parser.add_argument('--version', action='version', version=f'{APP_NAME} {APP_VERSION}')
+    parser.add_argument('--version', action='version', version=f'{__app_name__} {__version__}')
 
     subparsers = parser.add_subparsers(title="Commands", dest="command")
 
