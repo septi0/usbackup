@@ -129,9 +129,9 @@ def du(path: str, *, match: str = None):
         raise CmdExecError("Path not specified")
     
     if match:
-        return exec_cmd(["find", path, "-maxdepth", '1', "-name", match, '-exec', 'du', '-sh', '{}', '+'])
+        return exec_cmd(["find", path, "-maxdepth", '1', "-name", match, '-exec', 'du', '-s', '{}', '+'])
     else:
-        return exec_cmd(["du", "-sh", path])
+        return exec_cmd(["du", "-s", path])
 
 def parse_cmd_options(options: list, *, use_equal: bool = True):
     cmd_options = []

@@ -80,18 +80,22 @@ class UsBackupSnapshot:
         self._cleanup_jobs = []
 
     def du(self) -> dict:
-        du = {}
+        output = {
+            'total': 0,
+            'levels': {}
+        }
 
         # mount all mountpoints
         self._mount_mountpoints(self._mountpoints)
 
         for level in self._levels:
-            usages = level.du()
+            level_usage = level.du()
 
-            if usages:
-                du[level.name] = usages
+            if level_usage.get('versions'):
+                output['total'] += level_usage['total']
+                output['levels'][level.name] = level_usage
 
-        return du
+        return output
     
     def _gen_backup_dst(self, config: dict) -> str:
         backup_dst = config.get("destination")

@@ -107,16 +107,19 @@ class UsBackupSnapshotLevel:
 
         return report
     
-    def du(self) -> list[str]:
+    def du(self) -> dict:
+        output = {
+            'total': 0,
+            'versions': []
+        }
+
         if not os.path.isdir(self._label_path):
-            return []
+            return output
 
         usage = cmd_exec.du(self._label_path, match='backup.*')
 
         if not usage:
-            return []
-        
-        output = []
+            return output
         
         usage = usage.strip().split('\n')
 
@@ -127,11 +130,13 @@ class UsBackupSnapshotLevel:
                 continue
 
             version = os.path.basename(row[1])
-
-            output.append((version, row[0]))
+            size = int(row[0])
+            
+            output['total'] += size
+            output['versions'].append((version, size))
 
         # sort by version
-        output.sort(key=lambda x: x[0])
+        output['versions'].sort(key=lambda x: x[0])
 
         return output
     

@@ -4,6 +4,7 @@ import logging
 import asyncio
 import time
 import signal
+import math
 from configparser import ConfigParser
 from usbackup.snapshot import UsBackupSnapshot
 from usbackup.exceptions import UsbackupConfigError
@@ -29,22 +30,23 @@ class UsBackupManager:
     def du(self, format: str = 'dict') -> str | dict:
         self._logger.debug(f'Checking disk usage of snapshots')
 
-        snapshot_usage = {}
+        output = {}
 
         for snapshot in self._snapshots:
             try:
-                usages = snapshot.du()
-                if usages:
-                    snapshot_usage[snapshot.name] = {'usage': usages}
+                snapshot_usage = snapshot.du()
+
+                if snapshot_usage.get('levels'):
+                    output[snapshot.name] = snapshot_usage
             except Exception as e:
-                snapshot_usage[snapshot.name] = {'error': str(e)}
+                output[snapshot.name] = {'error': str(e)}
 
             snapshot.cleanup()
 
         if format == 'string':
-            return self._format_du(snapshot_usage)
+            return self._format_du(output)
         else:
-            return snapshot_usage
+            return output
 
     def _parse_config(self, config_files: list[str]) -> dict:
         if not config_files:
@@ -234,8 +236,8 @@ class UsBackupManager:
                 self._running = False
 
                 raise e from None
-            
-            snapshot.cleanup()
+            finally:
+                snapshot.cleanup()
 
         self._running = False
 
@@ -246,37 +248,46 @@ class UsBackupManager:
         output = ''
 
         for snapshot_name, snapshot_data in snapshot_usage.items():
-            output += f"{snapshot_name}:\n"
+            snapshot_total = self._prettify_size(snapshot_data.get('total', 0))
+            output += f"{snapshot_name} ({snapshot_total}):\n"
             snapshot_prefix = ''
 
             if 'error' in snapshot_data:
                 output += f"{snapshot_prefix}└── Error:{snapshot_data['error']}\n\n"
                 continue
 
-            if not 'usage' in snapshot_data:
+            if not 'levels' in snapshot_data:
                 continue
 
-            last_level = list(snapshot_data['usage'].keys())[-1]
+            levels = len(snapshot_data['levels'])
 
-            for level, versions in snapshot_data['usage'].items():
-                # check if last loop iteration
-                if level != last_level:
-                    output += f"{snapshot_prefix}├──{level}:\n"
+            for level, level_data in snapshot_data['levels'].items():
+                levels -= 1
+
+                if levels:
+                    output += f"{snapshot_prefix}├──{level}"
                     level_prefix = '│  '
                 else:
-                    output += f"{snapshot_prefix}└──{level}:\n"
+                    output += f"{snapshot_prefix}└──{level}"
                     level_prefix = '   '
 
-                last_version = list(versions)[-1][0]
+                level_total = self._prettify_size(level_data.get('total', 0))
+                output += f" ({level_total}):\n"
 
-                for (version, size) in versions:
+                versions = len(level_data['versions'])
+
+                for (version, size) in level_data['versions']:
+                    versions -= 1
+
                     # check if last loop iteration
-                    if version != last_version:
+                    if versions:
                         version_prefix = '├── '
                         extra_nl = False
                     else:
                         version_prefix = '└── '
                         extra_nl = True
+
+                    size = self._prettify_size(size)
 
                     output += f"{snapshot_prefix}{level_prefix}{version_prefix}{version}: {size}\n"
 
@@ -284,3 +295,20 @@ class UsBackupManager:
                         output += f'{snapshot_prefix}{level_prefix}\n'
 
         return output
+    
+    # prettify size same way as du -h
+    def _prettify_size(self, size: int) -> str:
+        sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+
+        if size == 0:
+            return '0B'
+
+        i = int(math.floor(math.log(size, 1024)))
+
+        if i > 4:
+            i = 4
+
+        p = math.pow(1024, i)
+        s = round(size / p, 2)
+
+        return f"{s:.1f}{sizes[i]}"
