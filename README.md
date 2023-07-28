@@ -32,6 +32,7 @@ Files can be backed up from local storage or from remote storage, also they can 
 - rsync
 - mysqldump
 - tar
+- ssh
 - sshpass (if using passwords for remote hosts - not recommended)
 
 ## Installation
