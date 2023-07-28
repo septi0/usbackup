@@ -130,7 +130,8 @@ class UsBackupSnapshotLevel:
                 continue
 
             version = os.path.basename(row[1])
-            size = int(row[0])
+            # du returns size in KB, convert to bytes
+            size = int(row[0]) * 1024
             
             output['total'] += size
             output['versions'].append((version, size))
