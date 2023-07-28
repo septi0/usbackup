@@ -26,20 +26,25 @@ class UsBackupManager:
         else:
             self._run_once()
 
-    def du(self) -> dict:
+    def du(self, format: str = 'dict') -> str | dict:
         self._logger.debug(f'Checking disk usage of snapshots')
 
         snapshot_usage = {}
 
         for snapshot in self._snapshots:
-            usages = snapshot.du()
-
-            if usages:
-                snapshot_usage[snapshot.name] = usages
+            try:
+                usages = snapshot.du()
+                if usages:
+                    snapshot_usage[snapshot.name] = {'usage': usages}
+            except Exception as e:
+                snapshot_usage[snapshot.name] = {'error': str(e)}
 
             snapshot.cleanup()
 
-        return snapshot_usage
+        if format == 'string':
+            return self._format_du(snapshot_usage)
+        else:
+            return snapshot_usage
 
     def _parse_config(self, config_files: list[str]) -> dict:
         if not config_files:
@@ -210,3 +215,27 @@ class UsBackupManager:
             snapshot.cleanup()
 
         self._running = False
+
+    def _format_du(self, snapshot_usage: dict) -> str:
+        if not snapshot_usage:
+            return "No snapshots found"
+        
+        output = ''
+
+        for snapshot_name, snapshot_data in snapshot_usage.items():
+            output += f"\n{snapshot_name}:\n"
+
+            if 'error' in snapshot_data:
+                output += f"  Error: {snapshot_data['error']}\n"
+                continue
+
+            if not 'usage' in snapshot_data:
+                continue
+
+            for level, versions in snapshot_data['usage'].items():
+                output += f"  {level}:\n"
+
+                for (version, size) in versions:
+                    output += f"    {version}: {size}\n"
+
+        return output

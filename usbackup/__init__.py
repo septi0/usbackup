@@ -38,6 +38,10 @@ def main():
         'log_level': args.log_level,
     }
 
+    # if commands configtest or du are used, only log errors
+    if args.command in ['configtest', 'du']:
+        options['log_level'] = 'ERROR'
+
     try:
         usbackup = UsBackupManager(options)
     except UsbackupConfigError as e:
@@ -49,23 +53,7 @@ def main():
         sys.exit(0)
     elif args.command == 'du':
         print("Checking disk usage of snapshots. This may take a while...")
-        usages = usbackup.du()
-
-        if usages:
-            formatted_usages = ''
-            
-            for snapshot_name, usage in usages.items():
-                formatted_usages += f"\n{snapshot_name}:\n"
-
-                for level, versions in usage.items():
-                    formatted_usages += f"  {level}:\n"
-
-                    for (version, size) in versions:
-                        formatted_usages += f"    {version}: {size}\n"
-        else:
-            formatted_usages = "No snapshots found"
-
-        print(formatted_usages)
+        print(usbackup.du(format='string'))
         sys.exit(0)
     elif args.command == 'backup':
         usbackup.backup(service=args.service)
