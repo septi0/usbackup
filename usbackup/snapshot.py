@@ -156,7 +156,7 @@ class UsBackupSnapshot:
                     if "already mounted" in str(e):
                         self._logger.warning(f"{mountpoint} already mounted")
                     else:
-                        raise e
+                        raise e from None
 
             self._add_cleanup_job(self.unmount_mountpoints, mountpoints)
 
@@ -173,7 +173,7 @@ class UsBackupSnapshot:
                     elif "not mounted" in str(e):
                         self._logger.warning(f"{mountpoint} not mounted")
                     else:
-                        raise e
+                        raise e from None
     
     def _add_cleanup_job(self, handler, *args, **kwargs) -> None:
         self._cleanup_jobs.append((handler, args, kwargs))

@@ -152,11 +152,13 @@ class UsBackupManager:
         
         signal.signal(signal.SIGTERM, sigterm_handler)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
+
+        asyncio.set_event_loop(loop)
 
         async def run_service():
             while True:
-                self._do_backup(service=True)
+                await self._do_backup(service=True)
                 await asyncio.sleep(60)
 
         try:
@@ -178,18 +180,39 @@ class UsBackupManager:
             loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
 
             for task in tasks:
-                if task.cancelled():
-                    continue
-
-                if task.exception() is not None:
-                    raise task.exception()
+                if task.exception():
+                    self._logger.exception(task.exception(), exc_info=True)
                 
             loop.close()
     
     def _run_once(self) -> None:
-        self._do_backup()
+        loop = asyncio.new_event_loop()
 
-    def _do_backup(self, *, service = False) -> None:
+        asyncio.set_event_loop(loop)
+
+        try:
+            loop.run_until_complete(self._do_backup())
+        except (KeyboardInterrupt):
+            self._logger.info("Backup interrupted by user")
+            pass
+        except (Exception) as e:
+            self._logger.info("Backup interrupted by an exception")
+            self._logger.exception(e, exc_info=True)
+        finally:
+            tasks = asyncio.all_tasks(loop)
+
+            for task in tasks:
+                task.cancel()
+
+            loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
+
+            for task in tasks:
+                if task.exception():
+                    self._logger.exception(task.exception(), exc_info=True)
+                
+            loop.close()
+
+    async def _do_backup(self, *, service = False) -> None:
         if self._running:
             logging.warning("Previous backup is still running")
             return
@@ -210,7 +233,7 @@ class UsBackupManager:
                 snapshot.cleanup()
                 self._running = False
 
-                raise e
+                raise e from None
             
             snapshot.cleanup()
 
