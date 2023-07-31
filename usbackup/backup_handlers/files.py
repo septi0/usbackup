@@ -12,7 +12,7 @@ class FilesHandler(BackupHandler):
         self._name: str = 'files'
         self._snapshot_name:str = snapshot_name
         
-        self._backup_src: list[str] = shlex.split(config.get("backup_files", ''))
+        self._backup_src: list[str] = self._gen_backup_src(config.get("backup_files", ''))
         self._backup_src_exclude: list[str] = shlex.split(config.get("backup_files.exclude", ''))
         self._backup_src_bwlimit: str = config.get("backup_files.bwlimit")
         self._backup_src_mode: str = self._gen_backup_mode(config)
@@ -64,6 +64,27 @@ class FilesHandler(BackupHandler):
 
         return report
     
+    def _gen_backup_src(self, backup_src: str) -> list[str]:
+        backup_src = shlex.split(backup_src)
+        result = []
+
+        for src in backup_src:
+            # make sure all sources are absolute paths
+            if not os.path.isabs(src):
+                raise UsbackupConfigError(f'Invalid backup_files source: "{src}"')
+            
+            # make sure all sources exist
+            if not os.path.exists(src):
+                raise UsbackupConfigError(f'backup_files source does not exist: "{src}"')
+
+            # make sure paths don't end with a slash
+            if src.endswith('/'):
+                src = src[:-1]
+
+            result.append(src)
+
+        return result
+    
     def _gen_backup_mode(self, config: dict) -> str:
         backup_mode = config.get("backup_files.mode", 'incremental')
 
@@ -104,8 +125,8 @@ class FilesHandler(BackupHandler):
             ]
 
             if self._backup_src_exclude:
-                for exclude_dir in self._backup_src_exclude:
-                    options.append(('exclude', exclude_dir))
+                for exclude in self._backup_src_exclude:
+                    options.append(('exclude', exclude))
 
             if self._backup_src_bwlimit:
                 options.append(('bwlimit', str(self._backup_src_bwlimit)))
@@ -130,11 +151,11 @@ class FilesHandler(BackupHandler):
         destination_archive = os.path.join(backup_dst, f'{self._snapshot_name}.tar.gz')
         sources = []
 
-        for src_dir in self._backup_src:
+        for src in self._backup_src:
             if bool(self._backup_src_remote):
                 raise HandlerError('Archive mode does not support remote backup')
 
-            sources.append(src_dir)
+            sources.append(src)
 
         if not sources:
             raise HandlerError('No sources to archive')

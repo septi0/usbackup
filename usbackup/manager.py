@@ -13,7 +13,7 @@ __all__ = ['UsBackupManager']
 
 class UsBackupManager:
     def __init__(self, params: dict) -> None:
-        self._pid_file: str = "/tmp/usbackup.pid"
+        self._pid_filepath: str = self._gen_pid_filepath()
         self._running: bool = False
 
         config = self._parse_config(params.get('config_files'))
@@ -74,6 +74,12 @@ class UsBackupManager:
             config[section] = section_data
 
         return config
+    
+    def _gen_pid_filepath(self) -> str:
+        if os.getuid() == 0:
+            return '/var/run/usbackup.pid'
+        else:
+            return '/tmp/usbackup.pid'
     
     def _gen_logger(self, log_file: str, log_level: str) -> logging.Logger:
         levels = {
@@ -139,11 +145,11 @@ class UsBackupManager:
     def _run_service(self) -> None:
         pid = str(os.getpid())
 
-        if os.path.isfile(self._pid_file):
+        if os.path.isfile(self._pid_filepath):
             self._logger.error("Service is already running")
             sys.exit(1)
 
-        with open(self._pid_file, 'w') as f:
+        with open(self._pid_filepath, 'w') as f:
             f.write(pid)
 
         self._logger.info("Starting service")
@@ -172,7 +178,7 @@ class UsBackupManager:
         finally:
             self._logger.info("Shutting down service")
 
-            os.unlink(self._pid_file)
+            os.unlink(self._pid_filepath)
 
             tasks = asyncio.all_tasks(loop)
 

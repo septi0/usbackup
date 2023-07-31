@@ -63,8 +63,9 @@ class UsBackupSnapshotLevel:
     def backup(self, run_time: float = None) -> None:
         self._rotate_backups()
 
-        self._logger.info(f'Creating directory {self._backup_dst}')
-        cmd_exec.mkdir(self._backup_dst)
+        if not os.path.isdir(self._backup_dst):
+            self._logger.info(f'Creating directory {self._backup_dst}')
+            cmd_exec.mkdir(self._backup_dst)
 
         # create lock file
         lock_file = os.path.join(self._backup_dst, 'backup.lock')
