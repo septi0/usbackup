@@ -72,10 +72,6 @@ class FilesHandler(BackupHandler):
             # make sure all sources are absolute paths
             if not os.path.isabs(src):
                 raise UsbackupConfigError(f'Invalid backup_files source: "{src}"')
-            
-            # make sure all sources exist
-            if not os.path.exists(src):
-                raise UsbackupConfigError(f'backup_files source does not exist: "{src}"')
 
             # make sure paths don't end with a slash
             if src.endswith('/'):
