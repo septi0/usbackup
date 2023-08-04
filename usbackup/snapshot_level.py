@@ -29,23 +29,27 @@ class UsBackupSnapshotLevel:
     @property
     def name(self) -> str:
         return self._name
+
+    @property
+    def logger(self) -> logging.Logger:
+        return self._logger
     
     def get_backup_dst(self) -> str:
         return self._backup_dst
 
-    def backup_needed(self, run_time: float = None, include_manual: bool = False) -> bool:
+    def backup_needed(self, *, run_time: datetime.datetime = None, exclude: list = []) -> bool:
         backup_needed = False
         last_backup_time = self.get_last_backup_time()
 
         if not run_time:
-            run_time = time.time()
+            run_time = datetime.datetime.now()
 
-        if self._type == 'schedule':
+        if self._type == 'schedule' and not 'schedule' in exclude:
             backup_needed = self._check_backup_needed_by_schedule(last_backup_time, run_time)
-        elif self._type == 'age':
+        elif self._type == 'age' and not 'age' in exclude:
             backup_needed = self._check_backup_needed_by_age(last_backup_time, run_time)
-        elif self._type == 'on_demand':
-            backup_needed = include_manual
+        elif self._type == 'on_demand' and not 'on_demand' in exclude:
+            backup_needed = True
         
         return backup_needed
         
@@ -60,7 +64,10 @@ class UsBackupSnapshotLevel:
 
         return float(timestamp) if timestamp else None
     
-    def backup(self, run_time: float = None) -> None:
+    def backup(self, *, run_time: datetime.datetime = None) -> None:
+        if not run_time:
+            run_time = datetime.datetime.now()
+    
         self._rotate_backups()
 
         if not os.path.isdir(self._backup_dst):
@@ -70,17 +77,14 @@ class UsBackupSnapshotLevel:
         # create lock file
         lock_file = os.path.join(self._backup_dst, 'backup.lock')
 
-        if not run_time:
-            run_time = time.time()
-
         with open(lock_file, 'w') as f:
-            f.write(str(run_time))
+            f.write(str(run_time.timestamp()))
 
         self._truncate_backup_report()
 
-        start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        real_run_time = datetime.datetime.now()
 
-        self._write_backup_report([f'Backup for level {self._name} started at {start_time}', ""])
+        self._write_backup_report([f'Backup for level {self._name} started at {real_run_time}', ""])
 
         for handler in self._handlers:
             try:
@@ -233,9 +237,9 @@ class UsBackupSnapshotLevel:
 
         return backup_dst_link
 
-    def _check_backup_needed_by_schedule(self, last_backup_time: float, run_time: float) -> bool:
+    def _check_backup_needed_by_schedule(self, last_backup_time_ts: float, run_time: datetime.datetime) -> bool:
         # check if run time matches schedule
-        parsed_run_time = time.strftime('%M %H %d %m %w', time.localtime(run_time)).split()
+        parsed_run_time = run_time.strftime("%M %H %d %m %w").split()
         schedule_match = True
 
         for (config_segment, run_time_segment) in zip(self._options, parsed_run_time):
@@ -273,11 +277,11 @@ class UsBackupSnapshotLevel:
             self._logger.debug(f'Backup not needed. Schedule {self._options} does not match {parsed_run_time}')
             return False
 
-        if not last_backup_time:
+        if not last_backup_time_ts:
             return True
 
         # make sure last backup is not too recent
-        parsed_last_backup_time = time.strftime('%M %H %d %m %w', time.localtime(last_backup_time)).split()
+        parsed_last_backup_time = time.strftime('%M %H %d %m %w', time.localtime(last_backup_time_ts)).split()
 
         if parsed_last_backup_time == parsed_run_time:
             self._logger.debug(f'Backup not needed. Last backup was done at {parsed_last_backup_time}')
@@ -285,7 +289,7 @@ class UsBackupSnapshotLevel:
 
         return True
 
-    def _check_backup_needed_by_age(self, last_backup_time: float, run_time: float) -> bool:
+    def _check_backup_needed_by_age(self, last_backup_time_ts: float, run_time: datetime.datetime) -> bool:
         age_intervals = {
             'm': 60,
             'h': 60 * 60,
@@ -294,11 +298,13 @@ class UsBackupSnapshotLevel:
 
         target_age = self._options[0] * age_intervals[self._options[1].lower()]
 
-        if not last_backup_time:
+        if not last_backup_time_ts:
             return True
+        
+        run_time_ts = run_time.timestamp()
 
         # check if latest version is within the age interval
-        last_backup_age = run_time - last_backup_time
+        last_backup_age = run_time_ts - last_backup_time_ts
 
         if last_backup_age < target_age:
             self._logger.debug(f'Backup not needed. Last backup is within the age interval ({last_backup_age} < {target_age})')

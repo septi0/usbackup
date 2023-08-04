@@ -1,3 +1,6 @@
+class GracefulExit(BaseException):
+    pass
+
 class UsbackupConfigError(Exception):
     pass
 

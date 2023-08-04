@@ -1,9 +1,10 @@
 import logging
-import time
+import datetime
 import shlex
 import usbackup.cmd_exec as cmd_exec
 import usbackup.backup_handlers as backup_handlers
 import usbackup.report_handlers as report_handlers
+from usbackup.jobs_queue import JobsQueue
 from usbackup.snapshot_level import UsBackupSnapshotLevel
 from usbackup.exceptions import UsbackupConfigError
 from usbackup.backup_handlers.base import BackupHandler
@@ -12,11 +13,10 @@ from usbackup.report_handlers.base import ReportHandler
 __all__ = ['UsBackupSnapshot']
 
 class UsBackupSnapshot:
-    def __init__(self, name: str, config: dict, *, logger: logging.Logger):
+    def __init__(self, name: str, config: dict, *, cleanup: JobsQueue, logger: logging.Logger):
         self._name: str = name
+        self._cleanup: JobsQueue = cleanup
         self._logger: logging.Logger = logger.getChild(self._name)
-
-        self._cleanup_jobs: list[tuple] = []
 
         self._mountpoints: list[str] = shlex.split(config.get("mount", ""))
         self._backup_dst: str = self._gen_backup_dst(config)
@@ -24,22 +24,32 @@ class UsBackupSnapshot:
         self._report_handlers: list[ReportHandler] = self._gen_report_handlers(config)
         self._pre_backup_cmd: list[str] = shlex.split(config.get("pre_backup_cmd", ""))
         self._post_backup_cmd: list[str] = shlex.split(config.get("post_backup_cmd", ""))
+        self._concurrency_group: str = config.get("concurrency_group", "")
 
     @property
     def name(self) -> str:
         return self._name
 
-    def get_levels(self) -> list:
+    @property
+    def logger(self) -> logging.Logger:
+        return self._logger
+
+    @property
+    def levels(self) -> list:
         return self._levels
+
+    @property
+    def concurrency_group(self) -> str:
+        return self._concurrency_group
     
-    def backup(self, run_time: float = None, include_manual_levels: bool = False) -> None:
+    def backup(self, *, run_time: datetime.datetime = None, exclude: list = []) -> None:
         levels_to_backup = []
 
         if not run_time:
-            run_time = time.time()
+            run_time = datetime.datetime.now()
 
         for level in self._levels:
-            if level.backup_needed(run_time, include_manual_levels):
+            if level.backup_needed(run_time=run_time, exclude=exclude):
                 levels_to_backup.append(level)
 
         # check if we have levels to backup
@@ -49,22 +59,33 @@ class UsBackupSnapshot:
         
         self._logger.info("Starting backup")
 
-        # mount all mountpoints
-        self._mount_mountpoints(self._mountpoints)
-
         # run pre backup command
         if self._pre_backup_cmd:
             self._logger.info("Running pre backup command")
             cmd_exec.exec_cmd(self._pre_backup_cmd)
 
+        job_name = f'snapshot_{self._name}_mountpoints'
+
+        # mount all mountpoints
+        self._mount_mountpoints()
+
+        # add umount_mountpoints to cleanup queue
+        self._cleanup.add_job(job_name, self._umount_mountpoints)
+
         # backup levels that need backup
         for level in levels_to_backup:
             try:
-                level.backup(run_time)
+                level.backup(run_time=run_time)
             except (Exception) as e:
-                self._logger.exception(f"{level.name} level exception: {e}", exc_info=True)
+                level.logger.exception(e, exc_info=True)
 
         self._run_report_handlers(levels_to_backup)
+
+        # remove umount_mountpoints from cleanup queue
+        self._cleanup.remove_job(job_name)
+
+        # unmount all mountpoints
+        self._umount_mountpoints()
 
         # run post backup command
         if self._post_backup_cmd:
@@ -73,20 +94,19 @@ class UsBackupSnapshot:
 
         self._logger.info("Backup finished")
 
-    def cleanup(self) -> None:
-        for (handler, args, kwargs) in self._cleanup_jobs:
-            handler(*args, **kwargs)
-
-        self._cleanup_jobs = []
-
     def du(self) -> dict:
         output = {
             'total': 0,
             'levels': {}
         }
 
+        job_name = f'snapshot_{self._name}_mountpoints'
+
         # mount all mountpoints
-        self._mount_mountpoints(self._mountpoints)
+        self._mount_mountpoints()
+
+        # add umount_mountpoints to cleanup queue
+        self._cleanup.add_job(job_name, self._umount_mountpoints)
 
         for level in self._levels:
             level_usage = level.du()
@@ -94,6 +114,12 @@ class UsBackupSnapshot:
             if level_usage.get('versions'):
                 output['total'] += level_usage['total']
                 output['levels'][level.name] = level_usage
+
+        # remove umount_mountpoints from cleanup queue
+        self._cleanup.remove_job(job_name)
+
+        # unmount all mountpoints
+        self._umount_mountpoints()
 
         return output
     
@@ -149,38 +175,37 @@ class UsBackupSnapshot:
 
         return handlers
 
-    def _mount_mountpoints(self, mountpoints: list[str]) -> None:
-        # mount all mountpoints
-        if mountpoints:
-            self._logger.info(f"Mounting {mountpoints}")
-            for mountpoint in mountpoints:
-                try:
-                    cmd_exec.mount(mountpoint)
-                except (Exception) as e:
-                    if "already mounted" in str(e):
-                        self._logger.warning(f"{mountpoint} already mounted")
-                    else:
-                        raise e from None
+    def _mount_mountpoints(self) -> None:
+        if not self._mountpoints:
+            return
+        
+        self._logger.info(f"Mounting {self._mountpoints}")
 
-            self._add_cleanup_job(self.unmount_mountpoints, mountpoints)
+        for mountpoint in self._mountpoints:
+            try:
+                cmd_exec.mount(mountpoint)
+            except (Exception) as e:
+                if "already mounted" in str(e):
+                    self._logger.warning(f"{mountpoint} already mounted")
+                else:
+                    raise e from None
 
-    def unmount_mountpoints(self, mountpoints: list[str]) -> None:
-        # unmount all mountpoints
-        if mountpoints:
-            self._logger.info(f"Unmounting {mountpoints}")
-            for mountpoint in mountpoints:
-                try:
-                    cmd_exec.umount(mountpoint)
-                except (Exception) as e:
-                    if "target is busy" in str(e):
-                        self._logger.warning(f"{mountpoint} target is busy")
-                    elif "not mounted" in str(e):
-                        self._logger.warning(f"{mountpoint} not mounted")
-                    else:
-                        raise e from None
-    
-    def _add_cleanup_job(self, handler, *args, **kwargs) -> None:
-        self._cleanup_jobs.append((handler, args, kwargs))
+    def _umount_mountpoints(self) -> None:
+        if not self._mountpoints:
+            return
+        
+        self._logger.info(f"Unmounting {self._mountpoints}")
+        
+        for mountpoint in self._mountpoints:
+            try:
+                cmd_exec.umount(mountpoint)
+            except (Exception) as e:
+                if "target is busy" in str(e):
+                    self._logger.warning(f"{mountpoint} target is busy")
+                elif "not mounted" in str(e):
+                    self._logger.warning(f"{mountpoint} not mounted")
+                else:
+                    raise e from None
 
     def _run_report_handlers(self, levels: list) -> None:
         report = []

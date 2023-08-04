@@ -1,52 +1,37 @@
 import os
 import sys
 import logging
-import asyncio
 import time
 import signal
 import math
+import datetime
 from configparser import ConfigParser
+from usbackup.jobs_queue import JobsQueue
 from usbackup.snapshot import UsBackupSnapshot
-from usbackup.exceptions import UsbackupConfigError
+from usbackup.exceptions import UsbackupConfigError, GracefulExit
 
 __all__ = ['UsBackupManager']
 
 class UsBackupManager:
     def __init__(self, params: dict) -> None:
         self._pid_filepath: str = self._gen_pid_filepath()
-        self._running: bool = False
 
         config = self._parse_config(params.get('config_files'))
+
+        self._cleanup = JobsQueue()
 
         self._logger: logging.Logger = self._gen_logger(params.get('log_file', ''), params.get('log_level', 'INFO'))
         self._snapshots: list[UsBackupSnapshot] = self._gen_snapshots(params.get('snapshot_names'), config)
 
+        signal.signal(signal.SIGTERM, self._sigterm_handler)
+        signal.signal(signal.SIGINT, self._sigterm_handler)
+        signal.signal(signal.SIGQUIT, self._sigterm_handler)
+
     def backup(self, *, service: bool = False) -> None:
-        if service:
-            self._run_service()
-        else:
-            self._run_once()
+        self._run_main(self._run_backup, service=service)
 
-    def du(self, format: str = 'dict') -> str | dict:
-        self._logger.debug(f'Checking disk usage of snapshots')
-
-        output = {}
-
-        for snapshot in self._snapshots:
-            try:
-                snapshot_usage = snapshot.du()
-
-                if snapshot_usage.get('levels'):
-                    output[snapshot.name] = snapshot_usage
-            except Exception as e:
-                output[snapshot.name] = {'error': str(e)}
-
-            snapshot.cleanup()
-
-        if format == 'string':
-            return self._format_du(output)
-        else:
-            return output
+    def du(self, *, format: str = 'dict') -> str | dict:
+        return self._run_main(self._run_du, format=format)
 
     def _parse_config(self, config_files: list[str]) -> dict:
         if not config_files:
@@ -138,11 +123,37 @@ class UsBackupManager:
             snapshot_config = config.get(snapshot_name)
             snapshot_config = {**global_config, **snapshot_config}
 
-            snapshots.append(UsBackupSnapshot(snapshot_name, snapshot_config, logger=self._logger))
+            snapshots.append(UsBackupSnapshot(snapshot_name, snapshot_config, cleanup=self._cleanup, logger=self._logger))
 
         return snapshots
+    
+    def _sigterm_handler(self, signum, frame) -> None:
+        raise GracefulExit
+    
+    def _run_main(self, main_task, *args, **kwargs) -> any:
+        output = None
 
-    def _run_service(self) -> None:
+        try:
+            output = main_task(*args, **kwargs)
+        except (Exception) as e:
+            self._logger.exception(e, exc_info=True)
+        except (GracefulExit) as e:
+            self._logger.info("Received termination signal")
+
+        self._logger.info("Running cleanup jobs")
+
+        self._cleanup.run_jobs()
+
+        return output
+
+    def _run_backup(self, *, service: bool = False) -> None:
+        if not service:
+            # run once
+            self._do_backup()
+            return
+        
+        # run as service
+        
         pid = str(os.getpid())
 
         if os.path.isfile(self._pid_filepath):
@@ -152,100 +163,61 @@ class UsBackupManager:
         with open(self._pid_filepath, 'w') as f:
             f.write(pid)
 
-        self._logger.info("Starting service")
+        self._cleanup.add_job('service_pid', os.remove, self._pid_filepath)
+        self._cleanup.add_job('shutdown_service', self._logger.info, 'Shutting down service')
 
-        # catch sigterm
-        def sigterm_handler(signum, frame):
-            raise KeyboardInterrupt
-        
-        signal.signal(signal.SIGTERM, sigterm_handler)
+        self._logger.info(f'Starting service with pid {pid}')
 
-        loop = asyncio.new_event_loop()
+        run_time = datetime.datetime.now()
 
-        asyncio.set_event_loop(loop)
+        # run every minute
+        while True:
+            # use our possibly bent time to run the backup
+            # so that if we are behind schedule, we still run every minute
+            self._do_backup(run_time=run_time.replace(second=0, microsecond=0), exclude=['on_demand'])
 
-        async def run_service():
-            while True:
-                await self._do_backup(service=True)
-                await asyncio.sleep(60)
+            # calculate the next scheduled run_time
+            run_time += datetime.timedelta(minutes=1)
 
-        try:
-            loop.run_until_complete(run_service())
-        except (KeyboardInterrupt):
-            pass
-        except (Exception) as e:
-            self._logger.exception(e, exc_info=True)
-        finally:
-            self._logger.info("Shutting down service")
+            # calculate the time left until the next run_time
+            time_left = (run_time - datetime.datetime.now()).total_seconds()
 
-            os.unlink(self._pid_filepath)
+            # we are behind schedule if time_left is negative
+            if time_left < 0:
+                self._logger.warning(f'Behind schedule ({abs(int(time_left / 60)) + 1} m), running backup for {run_time}')
 
-            tasks = asyncio.all_tasks(loop)
+            time.sleep(max(1, time_left))
 
-            for task in tasks:
-                task.cancel()
+    def _run_du(self, *, format: str = 'string') -> None:
+        self._logger.debug(f'Checking disk usage of snapshots')
 
-            loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
-
-            for task in tasks:
-                if task.exception():
-                    self._logger.exception(task.exception(), exc_info=True)
-                
-            loop.close()
-    
-    def _run_once(self) -> None:
-        loop = asyncio.new_event_loop()
-
-        asyncio.set_event_loop(loop)
-
-        try:
-            loop.run_until_complete(self._do_backup())
-        except (KeyboardInterrupt):
-            self._logger.info("Backup interrupted by user")
-            pass
-        except (Exception) as e:
-            self._logger.info("Backup interrupted by an exception")
-            self._logger.exception(e, exc_info=True)
-        finally:
-            tasks = asyncio.all_tasks(loop)
-
-            for task in tasks:
-                task.cancel()
-
-            loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
-
-            for task in tasks:
-                if task.exception():
-                    self._logger.exception(task.exception(), exc_info=True)
-                
-            loop.close()
-
-    async def _do_backup(self, *, service = False) -> None:
-        if self._running:
-            logging.warning("Previous backup is still running")
-            return
-
-        # set _running to current timestamp
-        self._running = time.time()
-
-        formatted_time = time.strftime("%Y-%m-%d %H:%M", time.localtime(self._running))
-
-        self._logger.debug(f'Checking backups for {formatted_time} time')
+        output = {}
 
         for snapshot in self._snapshots:
             try:
-                snapshot.backup(self._running, not service)
+                snapshot_usage = snapshot.du()
+
+                if snapshot_usage.get('levels'):
+                    output[snapshot.name] = snapshot_usage
+            except Exception as e:
+                output[snapshot.name] = {'error': str(e)}
+
+        if format == 'string':
+            return self._format_du(output)
+        else:
+            return output
+
+    def _do_backup(self, *, run_time: datetime.datetime = None, exclude: list = []) -> None:
+        if not run_time:
+            run_time = datetime.datetime.now()
+
+        self._logger.debug(f'Checking backups for {run_time} time')
+
+        for snapshot in self._snapshots:
+            try:
+                snapshot.backup(run_time=run_time, exclude=exclude)
             except (Exception) as e:
-                self._logger.exception(f"{snapshot.name} snapshot exception: {e}", exc_info=True)
-            except (KeyboardInterrupt) as e:
-                snapshot.cleanup()
-                self._running = False
-
-                raise e from None
-            finally:
-                snapshot.cleanup()
-
-        self._running = False
+                self._logger.exception(e, exc_info=True)
 
     def _format_du(self, snapshot_usage: dict) -> str:
         if not snapshot_usage:
@@ -285,7 +257,6 @@ class UsBackupManager:
                 for (version, size) in level_data['versions']:
                     versions -= 1
 
-                    # check if last loop iteration
                     if versions:
                         version_prefix = '├── '
                         extra_nl = False
