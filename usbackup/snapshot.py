@@ -42,14 +42,16 @@ class UsBackupSnapshot:
     def concurrency_group(self) -> str:
         return self._concurrency_group
     
-    def backup(self, *, run_time: datetime.datetime = None, exclude: list = []) -> None:
+    async def backup(self, *, exclude: list = []) -> None:
         levels_to_backup = []
 
-        if not run_time:
-            run_time = datetime.datetime.now()
+        snapshot_run_time = datetime.datetime.now()
+
+        self._logger.debug(f"Checking backup for time {snapshot_run_time}")
 
         for level in self._levels:
-            if level.backup_needed(run_time=run_time, exclude=exclude):
+            backup_needed = await level.backup_needed(exclude=exclude)
+            if backup_needed:
                 levels_to_backup.append(level)
 
         # check if we have levels to backup
@@ -62,12 +64,12 @@ class UsBackupSnapshot:
         # run pre backup command
         if self._pre_backup_cmd:
             self._logger.info("Running pre backup command")
-            cmd_exec.exec_cmd(self._pre_backup_cmd)
+            await cmd_exec.exec_cmd(self._pre_backup_cmd)
 
         job_name = f'snapshot_{self._name}_mountpoints'
 
         # mount all mountpoints
-        self._mount_mountpoints()
+        await self._mount_mountpoints()
 
         # add umount_mountpoints to cleanup queue
         self._cleanup.add_job(job_name, self._umount_mountpoints)
@@ -75,26 +77,26 @@ class UsBackupSnapshot:
         # backup levels that need backup
         for level in levels_to_backup:
             try:
-                level.backup(run_time=run_time)
+                await level.backup()
             except (Exception) as e:
                 level.logger.exception(e, exc_info=True)
 
-        self._run_report_handlers(levels_to_backup)
+        await self._run_report_handlers(levels_to_backup)
 
         # remove umount_mountpoints from cleanup queue
         self._cleanup.remove_job(job_name)
 
         # unmount all mountpoints
-        self._umount_mountpoints()
+        await self._umount_mountpoints()
 
         # run post backup command
         if self._post_backup_cmd:
             self._logger.info("Running post backup command")
-            cmd_exec.exec_cmd(self._post_backup_cmd)
+            await cmd_exec.exec_cmd(self._post_backup_cmd)
 
         self._logger.info("Backup finished")
 
-    def du(self) -> dict:
+    async def du(self) -> dict:
         output = {
             'total': 0,
             'levels': {}
@@ -103,13 +105,13 @@ class UsBackupSnapshot:
         job_name = f'snapshot_{self._name}_mountpoints'
 
         # mount all mountpoints
-        self._mount_mountpoints()
+        await self._mount_mountpoints()
 
         # add umount_mountpoints to cleanup queue
         self._cleanup.add_job(job_name, self._umount_mountpoints)
 
         for level in self._levels:
-            level_usage = level.du()
+            level_usage = await level.du()
 
             if level_usage.get('versions'):
                 output['total'] += level_usage['total']
@@ -119,7 +121,7 @@ class UsBackupSnapshot:
         self._cleanup.remove_job(job_name)
 
         # unmount all mountpoints
-        self._umount_mountpoints()
+        await self._umount_mountpoints()
 
         return output
     
@@ -175,7 +177,7 @@ class UsBackupSnapshot:
 
         return handlers
 
-    def _mount_mountpoints(self) -> None:
+    async def _mount_mountpoints(self) -> None:
         if not self._mountpoints:
             return
         
@@ -183,14 +185,14 @@ class UsBackupSnapshot:
 
         for mountpoint in self._mountpoints:
             try:
-                cmd_exec.mount(mountpoint)
+                await cmd_exec.mount(mountpoint)
             except (Exception) as e:
                 if "already mounted" in str(e):
                     self._logger.warning(f"{mountpoint} already mounted")
                 else:
                     raise e from None
 
-    def _umount_mountpoints(self) -> None:
+    async def _umount_mountpoints(self) -> None:
         if not self._mountpoints:
             return
         
@@ -198,7 +200,7 @@ class UsBackupSnapshot:
         
         for mountpoint in self._mountpoints:
             try:
-                cmd_exec.umount(mountpoint)
+                await cmd_exec.umount(mountpoint)
             except (Exception) as e:
                 if "target is busy" in str(e):
                     self._logger.warning(f"{mountpoint} target is busy")
@@ -207,16 +209,16 @@ class UsBackupSnapshot:
                 else:
                     raise e from None
 
-    def _run_report_handlers(self, levels: list) -> None:
+    async def _run_report_handlers(self, levels: list) -> None:
         report = []
 
         for level in levels:
-            report.append(level.get_backup_report())
+            report.append(await level.get_backup_report())
 
         self._logger.info("Running report handlers")
 
         for handler in self._report_handlers:
             try:
-                handler.report(report, logger=self._logger)
+                await handler.report(report, logger=self._logger)
             except (Exception) as e:
                 self._logger.exception(f"{handler.name} report handler exception: {e}", exc_info=True)

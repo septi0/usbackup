@@ -7,7 +7,7 @@ class BackupHandler(ABC):
         pass
 
     @abstractmethod
-    def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> list:
+    async def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> list:
         pass
 
     @abstractmethod

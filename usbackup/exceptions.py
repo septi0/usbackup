@@ -1,5 +1,5 @@
-class GracefulExit(BaseException):
-    pass
+class GracefulExit(SystemExit):
+    code = 1
 
 class UsbackupConfigError(Exception):
     pass

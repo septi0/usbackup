@@ -4,6 +4,7 @@ import time
 import datetime
 import re
 import usbackup.cmd_exec as cmd_exec
+from usbackup.aio_files import afread, afwrite
 from usbackup.exceptions import UsbackupConfigError
 from usbackup.backup_handlers.base import BackupHandler
 
@@ -37,12 +38,11 @@ class UsBackupSnapshotLevel:
     def get_backup_dst(self) -> str:
         return self._backup_dst
 
-    def backup_needed(self, *, run_time: datetime.datetime = None, exclude: list = []) -> bool:
+    async def backup_needed(self, *, exclude: list = []) -> bool:
         backup_needed = False
-        last_backup_time = self.get_last_backup_time()
+        last_backup_time = await self.get_last_backup_time()
 
-        if not run_time:
-            run_time = datetime.datetime.now()
+        run_time = datetime.datetime.now()
 
         if self._type == 'schedule' and not 'schedule' in exclude:
             backup_needed = self._check_backup_needed_by_schedule(last_backup_time, run_time)
@@ -53,43 +53,35 @@ class UsBackupSnapshotLevel:
         
         return backup_needed
         
-    def get_last_backup_time(self) -> float:
+    async def get_last_backup_time(self) -> float:
         lock_path = os.path.join(self._backup_dst, "backup.lock")
         if not os.path.isfile(lock_path):
             return None
 
         # get timestamp from tile
-        with open(lock_path, 'r') as f:
-            timestamp = f.read()
+        timestamp = await afread(lock_path)
 
         return float(timestamp) if timestamp else None
     
-    def backup(self, *, run_time: datetime.datetime = None) -> None:
-        if not run_time:
-            run_time = datetime.datetime.now()
+    async def backup(self) -> None:
+        level_run_time = datetime.datetime.now()
     
-        self._rotate_backups()
+        await self._rotate_backups()
 
         if not os.path.isdir(self._backup_dst):
             self._logger.info(f'Creating directory {self._backup_dst}')
-            cmd_exec.mkdir(self._backup_dst)
+            await cmd_exec.mkdir(self._backup_dst)
 
-        # create lock file
-        lock_file = os.path.join(self._backup_dst, 'backup.lock')
+        await self._create_lock_file(str(level_run_time.timestamp()))
 
-        with open(lock_file, 'w') as f:
-            f.write(str(run_time.timestamp()))
+        await self._truncate_backup_report()
 
-        self._truncate_backup_report()
-
-        real_run_time = datetime.datetime.now()
-
-        self._write_backup_report([f'Backup for level {self._name} started at {real_run_time}', ""])
+        await self._write_backup_report([f'Backup for level {self._name} started at {level_run_time}', ""])
 
         for handler in self._handlers:
             try:
-                self._write_backup_report(f'Starting {handler.name} backup')
-                handler_report = handler.backup(self._backup_dst, self._backup_dst_link, logger=self._logger)
+                await self._write_backup_report(f'Starting {handler.name} backup')
+                handler_report = await handler.backup(self._backup_dst, self._backup_dst_link, logger=self._logger)
             except (Exception) as e:
                 self._logger.exception(f'{handler.name} backup handler exception: {e}', exc_info=True)
                 handler_report = f'Exception: {e}'
@@ -97,9 +89,9 @@ class UsBackupSnapshotLevel:
             if isinstance(handler_report, str):
                 handler_report = [handler_report]
 
-            self._write_backup_report(handler_report)
+            await self._write_backup_report(handler_report)
 
-    def get_backup_report(self) -> str:
+    async def get_backup_report(self) -> str:
         report_path = os.path.join(self._backup_dst, "backup.log")
         report = ''
 
@@ -107,12 +99,11 @@ class UsBackupSnapshotLevel:
             return report
         
         # read all report lines
-        with open(report_path, 'r') as f:
-            report = f.read()
+        report = await afread(report_path)
 
         return report
     
-    def du(self) -> dict:
+    async def du(self) -> dict:
         output = {
             'total': 0,
             'versions': []
@@ -121,7 +112,7 @@ class UsBackupSnapshotLevel:
         if not os.path.isdir(self._label_path):
             return output
 
-        usage = cmd_exec.du(self._label_path, match='backup.*')
+        usage = await cmd_exec.du(self._label_path, match='backup.*')
 
         if not usage:
             return output
@@ -312,7 +303,7 @@ class UsBackupSnapshotLevel:
 
         return True
     
-    def _rotate_backups(self) -> None:
+    async def _rotate_backups(self) -> None:
         if not os.path.isdir(self._backup_dst):
             return None
         
@@ -338,7 +329,7 @@ class UsBackupSnapshotLevel:
 
             self._logger.info(f'Removing {src}')
 
-            cmd_exec.remove(src)
+            await cmd_exec.remove(src)
 
         for (src, dst) in mv_list:
             if not os.path.isdir(src):
@@ -347,19 +338,23 @@ class UsBackupSnapshotLevel:
 
             self._logger.info(f'Moving {src} to {dst}')
 
-            cmd_exec.move(src, dst)
+            await cmd_exec.move(src, dst)
 
-    def _truncate_backup_report(self) -> None:
+    async def _create_lock_file(self, data: str) -> None:
+        lock_file = os.path.join(self._backup_dst, 'backup.lock')
+
+        await afwrite(lock_file, data)
+
+    async def _truncate_backup_report(self) -> None:
         report_path = os.path.join(self._backup_dst, "backup.log")
 
         if not os.path.isfile(report_path):
             return None
 
         # truncate file
-        with open(report_path, 'w') as f:
-            f.write("")
+        await afwrite(report_path, "")
 
-    def _write_backup_report(self, report: str | list) -> None:
+    async def _write_backup_report(self, report: str | list) -> None:
         report_path = os.path.join(self._backup_dst, "backup.log")
 
         if not report:
@@ -369,5 +364,4 @@ class UsBackupSnapshotLevel:
             report = [report]
 
         # append stats to file
-        with open(report_path, 'a') as f:
-            f.write("\n".join(report) + "\n")
+        await afwrite(report_path, "\n".join(report) + "\n", mode='a')

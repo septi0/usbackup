@@ -13,7 +13,7 @@ class EmailHandler(ReportHandler):
         self._email_command: str = shlex.split(config.get("report_email.command", "sendmail -t"))
         self._from_address: str = config.get("report_email.from", "root@localhost")
 
-    def report(self, content: list | str, *, logger: logging.Logger) -> None:
+    async def report(self, content: list | str, *, logger: logging.Logger) -> None:
         if not bool(self._email_addresses):
             raise HandlerError(f'Handler "{self._name}" not configured')
         
@@ -24,7 +24,7 @@ class EmailHandler(ReportHandler):
 
         message = f'From: {self._from_address}\nTo: {to}\nSubject: Backup report for "{self._snapshot_name}" snapshot\n\n{body}'
 
-        cmd_exec.exec_cmd(self._email_command, input=message.encode())
+        await cmd_exec.exec_cmd(self._email_command, input=message)
 
     def __bool__(self) -> bool:
         return bool(self._email_addresses)

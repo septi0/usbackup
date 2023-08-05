@@ -24,7 +24,7 @@ class FilesHandler(BackupHandler):
         if self._backup_src_mode == 'archive' and bool(self._backup_src_remote):
             raise UsbackupConfigError("Archive mode does not support remote backup")
 
-    def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> list:
+    async def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> list:
         if not bool(self._backup_src):
             raise HandlerError(f'Handler "{self._name}" not configured')
         
@@ -36,7 +36,7 @@ class FilesHandler(BackupHandler):
 
         if not os.path.isdir(backup_dst):
             logger.info(f'Creating files backup folder "{backup_dst}"')
-            cmd_exec.mkdir(backup_dst)
+            await cmd_exec.mkdir(backup_dst)
 
         if backup_dst_link:
             backup_dst_link = os.path.join(backup_dst_link, 'files')
@@ -47,17 +47,17 @@ class FilesHandler(BackupHandler):
             logger.info('Using incremental backup mode')
             report.append('Using incremental backup mode')
 
-            report += self._backup_rsync(backup_dst, backup_dst_link, logger=logger)
+            report += await self._backup_rsync(backup_dst, backup_dst_link, logger=logger)
         elif self._backup_src_mode == 'full':
             logger.info(f'Using full backup mode')
             report.append('Using full backup mode')
 
-            report += self._backup_rsync(backup_dst, None, logger=logger)
+            report += await self._backup_rsync(backup_dst, None, logger=logger)
         elif self._backup_src_mode == 'archive':
             logger.info(f'Using archive backup mode')
             report.append('Using archive backup mode')
 
-            report += self._backup_tar(backup_dst, logger=logger)
+            report += await self._backup_tar(backup_dst, logger=logger)
         else:
             raise HandlerError('Invalid backup mode')
 
@@ -88,7 +88,7 @@ class FilesHandler(BackupHandler):
         
         return backup_mode
     
-    def _backup_rsync(self, backup_dst: str, backup_dst_link: str, *, logger: logging.Logger) -> list[str]:
+    async def _backup_rsync(self, backup_dst: str, backup_dst_link: str, *, logger: logging.Logger) -> list[str]:
         report = []
 
         for dir_src in self._backup_src:
@@ -129,19 +129,19 @@ class FilesHandler(BackupHandler):
             if backup_dst_link:
                 options.append(('link-dest', backup_dst_link))
 
-            report_line = cmd_exec.rsync(dir_src, backup_dst, options=options, **kwargs)
+            report_line = await cmd_exec.rsync(dir_src, backup_dst, options=options, **kwargs)
 
             report_line = report_line.splitlines()
 
             if len(report_line) >= 16:
                 report_line = "\n".join(report_line[-16:])
 
-            logger.debug(f'rsync output: {report_line}')
+            # logger.debug(f'rsync output: {report_line}')
             report += [str(report_line), '']
 
         return report
     
-    def _backup_tar(self, backup_dst: str, *, logger: logging.Logger) -> list[str]:
+    async def _backup_tar(self, backup_dst: str, *, logger: logging.Logger) -> list[str]:
         report = []
         destination_archive = os.path.join(backup_dst, f'{self._snapshot_name}.tar.gz')
         sources = []
@@ -158,9 +158,9 @@ class FilesHandler(BackupHandler):
         logger.info(f'Archiving "{sources}" to "{destination_archive}"')
         report += [f'* "{sources}" -> "{destination_archive}"', '']
 
-        report_line = cmd_exec.tar(destination_archive, sources)
+        report_line = await cmd_exec.tar(destination_archive, sources)
 
-        logger.debug(f'tar output: {report_line}')
+        # logger.debug(f'tar output: {report_line}')
         report += [str(report_line), '']
 
         return report

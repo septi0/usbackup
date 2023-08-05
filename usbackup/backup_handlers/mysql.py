@@ -20,7 +20,7 @@ class MysqlHandler(BackupHandler):
         except ValueError:
             raise UsbackupConfigError("Invalid mysql host provided for mysql")
 
-    def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> list:
+    async def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> list:
         if not bool(self._mysql_hosts):
             raise HandlerError(f'Handler "{self._name}" not configured')
         
@@ -32,7 +32,7 @@ class MysqlHandler(BackupHandler):
 
         if not os.path.isdir(mysql_dst):
             logger.info(f'Creating mysql backup folder "{mysql_dst}"')
-            cmd_exec.mkdir(mysql_dst)
+            await cmd_exec.mkdir(mysql_dst)
 
         if backup_dst_link:
             backup_dst_link = os.path.join(backup_dst_link, 'mysql')
@@ -71,9 +71,9 @@ class MysqlHandler(BackupHandler):
             cmd_options = cmd_exec.parse_cmd_options(options)
             
             with open(dump_filepath, 'w') as stdout:
-                report_line = cmd_exec.exec_cmd(['mysqldump', *cmd_options], stdout=stdout)
+                report_line = await cmd_exec.exec_cmd(['mysqldump', *cmd_options], stdout=stdout)
 
-            logger.debug(f'mysqldump output: {report_line}')
+            # logger.debug(f'mysqldump output: {report_line}')
             report += [str(report_line), '']
 
         return report

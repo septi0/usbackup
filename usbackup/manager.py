@@ -1,10 +1,9 @@
 import os
-import sys
 import logging
-import time
 import signal
 import math
 import datetime
+import asyncio
 from configparser import ConfigParser
 from usbackup.jobs_queue import JobsQueue
 from usbackup.snapshot import UsBackupSnapshot
@@ -22,10 +21,6 @@ class UsBackupManager:
 
         self._logger: logging.Logger = self._gen_logger(params.get('log_file', ''), params.get('log_level', 'INFO'))
         self._snapshots: list[UsBackupSnapshot] = self._gen_snapshots(params.get('snapshot_names'), config)
-
-        signal.signal(signal.SIGTERM, self._sigterm_handler)
-        signal.signal(signal.SIGINT, self._sigterm_handler)
-        signal.signal(signal.SIGQUIT, self._sigterm_handler)
 
     def backup(self, *, service: bool = False) -> None:
         self._run_main(self._run_backup, service=service)
@@ -127,29 +122,64 @@ class UsBackupManager:
 
         return snapshots
     
-    def _sigterm_handler(self, signum, frame) -> None:
+    def _sigterm_handler(self) -> None:
         raise GracefulExit
     
     def _run_main(self, main_task, *args, **kwargs) -> any:
         output = None
 
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        loop.add_signal_handler(signal.SIGTERM, self._sigterm_handler)
+        loop.add_signal_handler(signal.SIGINT, self._sigterm_handler)
+        loop.add_signal_handler(signal.SIGQUIT, self._sigterm_handler)
+
         try:
-            output = main_task(*args, **kwargs)
-        except (Exception) as e:
-            self._logger.exception(e, exc_info=True)
+            output = loop.run_until_complete(main_task(*args, **kwargs))
         except (GracefulExit) as e:
             self._logger.info("Received termination signal")
-
-        self._logger.info("Running cleanup jobs")
-
-        self._cleanup.run_jobs()
+        except (Exception) as e:
+            self._logger.exception(e, exc_info=True)
+        finally:
+            try:
+                self._logger.info("Running cleanup jobs")
+                loop.run_until_complete(self._cleanup.run_jobs())
+                
+                self._cancel_tasks(loop)
+                loop.run_until_complete(loop.shutdown_asyncgens())
+            finally:
+                asyncio.set_event_loop(None)
+                loop.close()
 
         return output
+    
+    def _cancel_tasks(self, loop: asyncio.AbstractEventLoop) -> None:
+        tasks = asyncio.all_tasks(loop=loop)
 
-    def _run_backup(self, *, service: bool = False) -> None:
+        if not tasks:
+            return
+
+        for task in tasks:
+            task.cancel()
+
+        loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
+
+        for task in tasks:
+            if task.cancelled():
+                continue
+
+            if task.exception() is not None:
+                loop.call_exception_handler({
+                    'message': 'Unhandled exception during task cancellation',
+                    'exception': task.exception(),
+                    'task': task,
+                })
+
+    async def _run_backup(self, *, service: bool = False) -> None:
         if not service:
             # run once
-            self._do_backup()
+            await self._do_backup()
             return
         
         # run as service
@@ -158,7 +188,7 @@ class UsBackupManager:
 
         if os.path.isfile(self._pid_filepath):
             self._logger.error("Service is already running")
-            sys.exit(1)
+            return
 
         with open(self._pid_filepath, 'w') as f:
             f.write(pid)
@@ -168,34 +198,35 @@ class UsBackupManager:
 
         self._logger.info(f'Starting service with pid {pid}')
 
-        run_time = datetime.datetime.now()
+        service_run_time = datetime.datetime.now().replace(second=0, microsecond=0)
 
         # run every minute
         while True:
-            # use our possibly bent time to run the backup
-            # so that if we are behind schedule, we still run every minute
-            self._do_backup(run_time=run_time.replace(second=0, microsecond=0), exclude=['on_demand'])
+            asyncio.create_task(self._do_backup(exclude=['on_demand']))
 
-            # calculate the next scheduled run_time
-            run_time += datetime.timedelta(minutes=1)
+            # calculate the next scheduled run_time for the service
+            service_run_time += datetime.timedelta(minutes=1)
 
             # calculate the time left until the next run_time
-            time_left = (run_time - datetime.datetime.now()).total_seconds()
+            time_left = (service_run_time - datetime.datetime.now()).total_seconds()
 
             # we are behind schedule if time_left is negative
             if time_left < 0:
-                self._logger.warning(f'Behind schedule ({abs(int(time_left / 60)) + 1} m), running backup for {run_time}')
+                self._logger.fatal(f'Behind schedule by {abs(int(time_left / 60)) + 1} m')
+                break
 
-            time.sleep(max(1, time_left))
+            self._logger.debug(f'Next run in {time_left} s')
 
-    def _run_du(self, *, format: str = 'string') -> None:
+            await asyncio.sleep(time_left)
+
+    async def _run_du(self, *, format: str = 'string') -> None:
         self._logger.debug(f'Checking disk usage of snapshots')
 
         output = {}
 
         for snapshot in self._snapshots:
             try:
-                snapshot_usage = snapshot.du()
+                snapshot_usage = await snapshot.du()
 
                 if snapshot_usage.get('levels'):
                     output[snapshot.name] = snapshot_usage
@@ -207,17 +238,19 @@ class UsBackupManager:
         else:
             return output
 
-    def _do_backup(self, *, run_time: datetime.datetime = None, exclude: list = []) -> None:
-        if not run_time:
-            run_time = datetime.datetime.now()
+    async def _do_backup(self, *, exclude: list = []) -> None:
+        tasks = []
 
-        self._logger.debug(f'Checking backups for {run_time} time')
+        try:
+            for snapshot in self._snapshots:
+                if snapshot.name in exclude:
+                    continue
 
-        for snapshot in self._snapshots:
-            try:
-                snapshot.backup(run_time=run_time, exclude=exclude)
-            except (Exception) as e:
-                self._logger.exception(e, exc_info=True)
+                tasks.append(asyncio.create_task(snapshot.backup(exclude=exclude)))
+            
+            await asyncio.gather(*tasks)
+        except (Exception) as e:
+            self._logger.exception(e, exc_info=True)
 
     def _format_du(self, snapshot_usage: dict) -> str:
         if not snapshot_usage:

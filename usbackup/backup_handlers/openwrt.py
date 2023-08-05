@@ -19,7 +19,7 @@ class OpenWrtHandler(BackupHandler):
         except ValueError:
             raise UsbackupConfigError("Invalid remote provided for openwrt")
 
-    def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> list:
+    async def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> list:
         if not bool(self._openwrt_hosts):
             raise HandlerError(f'Handler "{self._name}" not configured')
         
@@ -31,7 +31,7 @@ class OpenWrtHandler(BackupHandler):
 
         if not os.path.isdir(openwrt_dst):
             logger.info(f'Creating openwrt backup folder "{openwrt_dst}"')
-            cmd_exec.mkdir(openwrt_dst)
+            await cmd_exec.mkdir(openwrt_dst)
 
         if backup_dst_link:
             backup_dst_link = os.path.join(backup_dst_link, 'openwrt')
@@ -50,15 +50,15 @@ class OpenWrtHandler(BackupHandler):
                 kwargs['password'] = openwrt_host.password
                 logger.warning('Using password in plain is insecure. Consider using ssh keys instead')
 
-            ssh_out = cmd_exec.ssh(['sysupgrade', '-b', '/tmp/backup-openwrt.tar.gz'], openwrt_host.host, openwrt_host.user, **kwargs)
+            ssh_out = await cmd_exec.ssh(['sysupgrade', '-b', '/tmp/backup-openwrt.tar.gz'], openwrt_host.host, openwrt_host.user, **kwargs)
 
-            logger.debug(f'ssh output: {ssh_out}')
+            # logger.debug(f'ssh output: {ssh_out}')
 
             logger.info(f'Moving backup from "{str(openwrt_host)}" to backup folder "{openwrt_dst}"')
 
-            scp_out = cmd_exec.scp(f'{str(openwrt_host)}:/tmp/backup-openwrt.tar.gz', openwrt_dst, **kwargs)
+            scp_out = await cmd_exec.scp(f'{str(openwrt_host)}:/tmp/backup-openwrt.tar.gz', openwrt_dst, **kwargs)
 
-            logger.debug(f'scp output: {scp_out}')
+            # logger.debug(f'scp output: {scp_out}')
 
             report += [str(ssh_out), str(scp_out), '']
 

@@ -8,7 +8,7 @@ class ReportHandler(ABC):
         pass
 
     @abstractmethod
-    def report(self, content: list | str, *, logger: logging.Logger) -> None:
+    async def report(self, content: list | str, *, logger: logging.Logger) -> None:
         pass
 
     @abstractmethod

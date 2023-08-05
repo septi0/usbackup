@@ -1,5 +1,5 @@
-import requests
 import logging
+from usbackup.arequest import arequest_post
 from usbackup.report_handlers.base import ReportHandler
 from usbackup.exceptions import HandlerError
 
@@ -12,7 +12,7 @@ class SlackHandler(ReportHandler):
         self._slack_channel: str = config.get("report_slack", "")
         self._slack_token: str = config.get("report_slack.token", "")
 
-    def report(self, content: list, *, logger: logging.Logger) -> None:
+    async def report(self, content: list, *, logger: logging.Logger) -> None:
         if not bool(self._slack_channel):
             raise HandlerError(f'Handler "{self._name}" not configured')
 
@@ -22,14 +22,18 @@ class SlackHandler(ReportHandler):
             'Authorization': f"Bearer {self._slack_token}",
         }
 
-        data = {
+        params = {
             'channels': self._slack_channel,
-            'content': "\n".join(content),
+            # 'content': "\n".join(content),
             'filename': 'backup_report.log',
             'initial_comment': f'*Backup report for "{self._snapshot_name}" snapshot:*',
         }
 
-        resp = requests.post(self._slack_api_url, headers=headers, params=data)
+        files = {
+            'file': "\n".join(content),
+        }
+
+        resp = await arequest_post(self._slack_api_url, headers=headers, params=params, files=files)
 
         if resp.status_code != 200 or not resp.json().get('ok'):
             raise Exception(f'Slack exception: code: {resp.status_code}, response: {resp.text}')

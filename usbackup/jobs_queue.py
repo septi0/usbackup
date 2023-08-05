@@ -1,3 +1,5 @@
+import asyncio
+
 __all__ = ['JobsQueue']
 
 class JobsQueue:
@@ -10,11 +12,14 @@ class JobsQueue:
     def remove_job(self, id: str):
         self._jobs = [job for job in self._jobs if job[0] != id]
 
-    def run_jobs(self):
+    async def run_jobs(self):
         if not self._jobs:
             return
         
         for (id, handler, args, kwargs) in self._jobs:
-            handler(*args, **kwargs)
+            if asyncio.iscoroutinefunction(handler):
+                await handler(*args, **kwargs)
+            else:
+                handler(*args, **kwargs)
 
             self.remove_job(id)
