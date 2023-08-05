@@ -43,7 +43,7 @@ class UsBackupSnapshot:
     def concurrency_group(self) -> str:
         return self._concurrency_group
     
-    async def backup(self, *, exclude: list = []) -> None:
+    async def backup_if_needed(self, *, exclude: list = []) -> None:
         levels_to_backup = []
 
         snapshot_run_time = datetime.datetime.now()

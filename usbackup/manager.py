@@ -246,7 +246,7 @@ class UsBackupManager:
                 if snapshot.name in exclude:
                     continue
 
-                tasks.append(asyncio.create_task(snapshot.backup(exclude=exclude)))
+                tasks.append(asyncio.create_task(snapshot.backup_if_needed(exclude=exclude)))
             
             await asyncio.gather(*tasks)
         except (Exception) as e:
