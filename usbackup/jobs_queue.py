@@ -4,22 +4,34 @@ __all__ = ['JobsQueue']
 
 class JobsQueue:
     def __init__(self):
-        self._jobs = []
+        self._jobs = {}
 
-    def add_job(self, id: str, handler: callable, *args, **kwargs):
-        self._jobs.append((id, handler, args, kwargs))
+    def add_job(self, id: str, handler: callable, *args, **kwargs) -> None:
+        if id in self._jobs:
+            raise ValueError(f"Job with id {id} already exists")
+        
+        self._jobs[id] = (handler, args, kwargs)
 
-    def remove_job(self, id: str):
-        self._jobs = [job for job in self._jobs if job[0] != id]
+    def remove_job(self, id: str) -> None:
+        if id not in self._jobs:
+            return
+        
+        del self._jobs[id]
 
-    async def run_jobs(self):
+    def _pop_job(self) -> tuple:
+        if not self._jobs:
+            return None
+        
+        return self._jobs.popitem()[1]
+
+    async def run_jobs(self) -> None:
         if not self._jobs:
             return
         
-        for (id, handler, args, kwargs) in self._jobs:
+        while self._jobs:
+            (handler, args, kwargs) = self._pop_job()
+
             if asyncio.iscoroutinefunction(handler):
                 await handler(*args, **kwargs)
             else:
                 handler(*args, **kwargs)
-
-            self.remove_job(id)

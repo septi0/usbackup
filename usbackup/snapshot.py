@@ -1,6 +1,7 @@
 import logging
 import datetime
 import shlex
+import asyncio
 import usbackup.cmd_exec as cmd_exec
 import usbackup.backup_handlers as backup_handlers
 import usbackup.report_handlers as report_handlers
@@ -49,6 +50,8 @@ class UsBackupSnapshot:
 
         self._logger.debug(f"Checking backup for time {snapshot_run_time}")
 
+        await self._mount_mountpoints()
+
         for level in self._levels:
             backup_needed = await level.backup_needed(exclude=exclude)
             if backup_needed:
@@ -57,24 +60,21 @@ class UsBackupSnapshot:
         # check if we have levels to backup
         if not levels_to_backup:
             self._logger.debug("No levels to backup")
+            await self._umount_mountpoints()
+
             return
         
         self._logger.info("Starting backup")
+
+        if len(levels_to_backup) > 1:
+            self._logger.warning('More than one level to backup. Levels will be backed up sequentially')
 
         # run pre backup command
         if self._pre_backup_cmd:
             self._logger.info("Running pre backup command")
             await cmd_exec.exec_cmd(self._pre_backup_cmd)
 
-        job_name = f'snapshot_{self._name}_mountpoints'
-
-        # mount all mountpoints
-        await self._mount_mountpoints()
-
-        # add umount_mountpoints to cleanup queue
-        self._cleanup.add_job(job_name, self._umount_mountpoints)
-
-        # backup levels that need backup
+        # we backup levels sequentially (We'll check performance later)
         for level in levels_to_backup:
             try:
                 await level.backup()
@@ -83,16 +83,12 @@ class UsBackupSnapshot:
 
         await self._run_report_handlers(levels_to_backup)
 
-        # remove umount_mountpoints from cleanup queue
-        self._cleanup.remove_job(job_name)
-
-        # unmount all mountpoints
-        await self._umount_mountpoints()
-
         # run post backup command
         if self._post_backup_cmd:
             self._logger.info("Running post backup command")
             await cmd_exec.exec_cmd(self._post_backup_cmd)
+
+        await self._umount_mountpoints()
 
         self._logger.info("Backup finished")
 
@@ -102,13 +98,7 @@ class UsBackupSnapshot:
             'levels': {}
         }
 
-        job_name = f'snapshot_{self._name}_mountpoints'
-
-        # mount all mountpoints
         await self._mount_mountpoints()
-
-        # add umount_mountpoints to cleanup queue
-        self._cleanup.add_job(job_name, self._umount_mountpoints)
 
         for level in self._levels:
             level_usage = await level.du()
@@ -117,10 +107,6 @@ class UsBackupSnapshot:
                 output['total'] += level_usage['total']
                 output['levels'][level.name] = level_usage
 
-        # remove umount_mountpoints from cleanup queue
-        self._cleanup.remove_job(job_name)
-
-        # unmount all mountpoints
         await self._umount_mountpoints()
 
         return output
@@ -191,12 +177,18 @@ class UsBackupSnapshot:
                     self._logger.warning(f"{mountpoint} already mounted")
                 else:
                     raise e from None
+        
+        # add job to umount mountpoints so that if any exception happens, mountpoints are umounted before exiting
+        self._cleanup.add_job(f'snapshot_{self._name}_mountpoints', self._umount_mountpoints)
 
     async def _umount_mountpoints(self) -> None:
         if not self._mountpoints:
             return
         
         self._logger.info(f"Unmounting {self._mountpoints}")
+
+        # remove job to umount mountpoints, we are handling it now
+        self._cleanup.remove_job(f'snapshot_{self._name}_mountpoints')
         
         for mountpoint in self._mountpoints:
             try:

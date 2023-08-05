@@ -42,12 +42,10 @@ class UsBackupSnapshotLevel:
         backup_needed = False
         last_backup_time = await self.get_last_backup_time()
 
-        run_time = datetime.datetime.now()
-
         if self._type == 'schedule' and not 'schedule' in exclude:
-            backup_needed = self._check_backup_needed_by_schedule(last_backup_time, run_time)
+            backup_needed = self._check_backup_needed_by_schedule(last_backup_time)
         elif self._type == 'age' and not 'age' in exclude:
-            backup_needed = self._check_backup_needed_by_age(last_backup_time, run_time)
+            backup_needed = self._check_backup_needed_by_age(last_backup_time)
         elif self._type == 'on_demand' and not 'on_demand' in exclude:
             backup_needed = True
         
@@ -65,6 +63,8 @@ class UsBackupSnapshotLevel:
     
     async def backup(self) -> None:
         level_run_time = datetime.datetime.now()
+
+        self._logger.info(f'Backup for level {self._name} started at {level_run_time}')
     
         await self._rotate_backups()
 
@@ -228,9 +228,9 @@ class UsBackupSnapshotLevel:
 
         return backup_dst_link
 
-    def _check_backup_needed_by_schedule(self, last_backup_time_ts: float, run_time: datetime.datetime) -> bool:
+    def _check_backup_needed_by_schedule(self, last_backup_time_ts: float) -> bool:
         # check if run time matches schedule
-        parsed_run_time = run_time.strftime("%M %H %d %m %w").split()
+        parsed_run_time = datetime.datetime.now().strftime("%M %H %d %m %w").split()
         schedule_match = True
 
         for (config_segment, run_time_segment) in zip(self._options, parsed_run_time):
@@ -280,7 +280,7 @@ class UsBackupSnapshotLevel:
 
         return True
 
-    def _check_backup_needed_by_age(self, last_backup_time_ts: float, run_time: datetime.datetime) -> bool:
+    def _check_backup_needed_by_age(self, last_backup_time_ts: float) -> bool:
         age_intervals = {
             'm': 60,
             'h': 60 * 60,
@@ -292,7 +292,7 @@ class UsBackupSnapshotLevel:
         if not last_backup_time_ts:
             return True
         
-        run_time_ts = run_time.timestamp()
+        run_time_ts = datetime.datetime.now().timestamp()
 
         # check if latest version is within the age interval
         last_backup_age = run_time_ts - last_backup_time_ts
