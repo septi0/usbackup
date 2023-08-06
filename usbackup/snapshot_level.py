@@ -3,15 +3,18 @@ import logging
 import time
 import datetime
 import re
+import hashlib
 import usbackup.cmd_exec as cmd_exec
 from usbackup.aio_files import afread, afwrite
+from usbackup.jobs_queue import JobsQueue
+from usbackup.file_cache import FileCache
 from usbackup.exceptions import UsbackupConfigError
 from usbackup.backup_handlers.base import BackupHandler
 
 __all__ = ['UsBackupSnapshotLevel']
 
 class UsBackupSnapshotLevel:
-    def __init__(self, level_data: str, *, backup_dst: str, handlers: list, logger: logging.Logger) -> None:
+    def __init__(self, level_data: str, *, backup_dst: str, handlers: list, cleanup: JobsQueue, cache: FileCache, logger: logging.Logger) -> None:
         self._handlers: list[BackupHandler] = handlers
 
         parsed_level_data = self._parse_level_data(level_data)
@@ -21,11 +24,15 @@ class UsBackupSnapshotLevel:
         self._type: str = parsed_level_data[2]
         self._options: list[tuple] = parsed_level_data[3]
 
+        self._cleanup: JobsQueue = cleanup
+        self._cache: FileCache = cache
         self._logger: logging.Logger = logger.getChild(self._name)
 
         self._label_path: str = os.path.join(backup_dst, self._name)
         self._backup_dst: str = os.path.join(self._label_path, "backup.1")
         self._backup_dst_link: str = self._gen_backup_dst_link()
+
+        self._id: str = hashlib.md5(self._backup_dst.encode()).hexdigest()
 
     @property
     def name(self) -> str:
@@ -35,36 +42,40 @@ class UsBackupSnapshotLevel:
     def logger(self) -> logging.Logger:
         return self._logger
     
-    def get_backup_dst(self) -> str:
+    @property
+    def backup_dst(self) -> str:
         return self._backup_dst
 
     async def backup_needed(self, *, exclude: list = []) -> bool:
         backup_needed = False
-        last_backup_time = await self.get_last_backup_time()
+        last_backup = await self.get_last_backup()
 
         if self._type == 'schedule' and not 'schedule' in exclude:
-            backup_needed = self._check_backup_needed_by_schedule(last_backup_time)
+            backup_needed = self._check_backup_needed_by_schedule(last_backup)
         elif self._type == 'age' and not 'age' in exclude:
-            backup_needed = self._check_backup_needed_by_age(last_backup_time)
+            backup_needed = self._check_backup_needed_by_age(last_backup)
         elif self._type == 'on_demand' and not 'on_demand' in exclude:
             backup_needed = True
         
         return backup_needed
         
-    async def get_last_backup_time(self) -> float:
-        lock_path = os.path.join(self._backup_dst, "backup.lock")
-        if not os.path.isfile(lock_path):
-            return None
-
-        # get timestamp from tile
-        timestamp = await afread(lock_path)
-
-        return float(timestamp) if timestamp else None
+    async def get_last_backup(self) -> dict:
+        return {
+            'start': self._cache.get(f'{self._id}_last_backup_start', 0),
+            'finish': self._cache.get(f'{self._id}_last_backup_finish', 0),
+        }
     
     async def backup(self) -> None:
         level_run_time = datetime.datetime.now()
 
-        self._logger.info(f'Backup for level {self._name} started at {level_run_time}')
+        if await self._lock_file_exists():
+            self._logger.fatal(f'Backup for level {self._name} already running')
+            return
+
+        self._logger.info(f'Backup started at {level_run_time}')
+
+        self._cache.set(f'{self._id}_last_backup_start', level_run_time.timestamp())
+        self._cache.set(f'{self._id}_last_backup_finish', 0)
     
         await self._rotate_backups()
 
@@ -72,7 +83,8 @@ class UsBackupSnapshotLevel:
             self._logger.info(f'Creating directory {self._backup_dst}')
             await cmd_exec.mkdir(self._backup_dst)
 
-        await self._create_lock_file(str(level_run_time.timestamp()))
+        await self._create_lock_file()
+        self._cleanup.add_job(f'remove_lock_{self._id}', self._remove_lock_file)
 
         await self._truncate_backup_report()
 
@@ -90,6 +102,19 @@ class UsBackupSnapshotLevel:
                 handler_report = [handler_report]
 
             await self._write_backup_report(handler_report)
+
+        await self._remove_lock_file()
+        self._cleanup.remove_job(f'remove_lock_{self._id}')
+
+        level_finish_time = datetime.datetime.now()
+
+        self._cache.set(f'{self._id}_last_backup_finish', level_finish_time.timestamp())
+
+        elapsed_time = level_finish_time - level_run_time
+
+        await self._write_backup_report([f'Backup for level {self._name} finished at {level_finish_time}', f'Elapsed time: {elapsed_time}', ""])
+
+        self._logger.info(f'Backup finished at {level_finish_time}. Elapsed time: {elapsed_time}')
 
     async def get_backup_report(self) -> str:
         report_path = os.path.join(self._backup_dst, "backup.log")
@@ -228,7 +253,7 @@ class UsBackupSnapshotLevel:
 
         return backup_dst_link
 
-    def _check_backup_needed_by_schedule(self, last_backup_time_ts: float) -> bool:
+    def _check_backup_needed_by_schedule(self, last_backup: dict) -> bool:
         # check if run time matches schedule
         parsed_run_time = datetime.datetime.now().strftime("%M %H %d %m %w").split()
         schedule_match = True
@@ -267,12 +292,14 @@ class UsBackupSnapshotLevel:
         if not schedule_match:
             self._logger.debug(f'Backup not needed. Schedule {self._options} does not match {parsed_run_time}')
             return False
+        
+        last_backup_start_ts = last_backup.get('start')
 
-        if not last_backup_time_ts:
+        if not last_backup_start_ts:
             return True
 
         # make sure last backup is not too recent
-        parsed_last_backup_time = time.strftime('%M %H %d %m %w', time.localtime(last_backup_time_ts)).split()
+        parsed_last_backup_time = time.strftime('%M %H %d %m %w', time.localtime(last_backup_start_ts)).split()
 
         if parsed_last_backup_time == parsed_run_time:
             self._logger.debug(f'Backup not needed. Last backup was done at {parsed_last_backup_time}')
@@ -280,7 +307,7 @@ class UsBackupSnapshotLevel:
 
         return True
 
-    def _check_backup_needed_by_age(self, last_backup_time_ts: float) -> bool:
+    def _check_backup_needed_by_age(self, last_backup: dict) -> bool:
         age_intervals = {
             'm': 60,
             'h': 60 * 60,
@@ -289,13 +316,15 @@ class UsBackupSnapshotLevel:
 
         target_age = self._options[0] * age_intervals[self._options[1].lower()]
 
-        if not last_backup_time_ts:
+        last_backup_finish_ts = last_backup.get('finish')
+
+        if not last_backup_finish_ts:
             return True
         
         run_time_ts = datetime.datetime.now().timestamp()
 
         # check if latest version is within the age interval
-        last_backup_age = run_time_ts - last_backup_time_ts
+        last_backup_age = run_time_ts - last_backup_finish_ts
 
         if last_backup_age < target_age:
             self._logger.debug(f'Backup not needed. Last backup is within the age interval ({last_backup_age} < {target_age})')
@@ -340,10 +369,20 @@ class UsBackupSnapshotLevel:
 
             await cmd_exec.move(src, dst)
 
-    async def _create_lock_file(self, data: str) -> None:
+    async def _lock_file_exists(self) -> bool:
         lock_file = os.path.join(self._backup_dst, 'backup.lock')
 
-        await afwrite(lock_file, data)
+        return os.path.isfile(lock_file)
+
+    async def _create_lock_file(self) -> None:
+        lock_file = os.path.join(self._backup_dst, 'backup.lock')
+
+        await afwrite(lock_file, '')
+
+    async def _remove_lock_file(self) -> None:
+        lock_file = os.path.join(self._backup_dst, 'backup.lock')
+
+        await cmd_exec.remove(lock_file)
 
     async def _truncate_backup_report(self) -> None:
         report_path = os.path.join(self._backup_dst, "backup.log")

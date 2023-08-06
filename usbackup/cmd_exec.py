@@ -2,7 +2,7 @@ import logging
 import asyncio
 from usbackup.exceptions import CmdExecError, ProcessError
 
-__all__ = ['exec_cmd', 'mkdir', 'copy', 'move', 'remove', 'mount', 'mount_all', 'umount', 'umount_all', 'rsync', 'tar']
+__all__ = ['exec_cmd', 'mkdir', 'copy', 'move', 'remove', 'mount', 'mount_all', 'umount', 'umount_all', 'mounted', 'rsync', 'tar', 'ssh', 'scp', 'du']
 
 async def exec_cmd(cmd: list, *, input: str = None, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE) -> str:
     logging.debug(f'Executing command: {[*cmd]}')
@@ -68,6 +68,12 @@ async def umount(umount: str):
 async def umount_all(umount_List: list):
     for u in umount_List:
         umount(u)
+
+async def mounted(mount: str):
+    if not mount:
+        raise CmdExecError("Mount dir not specified")
+
+    return await exec_cmd(["mount", "|", "grep", mount])
 
 async def rsync(src: str, dst: str, *, options: list = [], ssh_port: int = None, ssh_password: str = None):
     if not src or not dst:

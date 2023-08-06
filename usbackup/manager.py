@@ -6,6 +6,7 @@ import datetime
 import asyncio
 from configparser import ConfigParser
 from usbackup.jobs_queue import JobsQueue
+from usbackup.file_cache import FileCache
 from usbackup.snapshot import UsBackupSnapshot
 from usbackup.exceptions import UsbackupConfigError, GracefulExit
 
@@ -17,7 +18,8 @@ class UsBackupManager:
 
         config = self._parse_config(params.get('config_files'))
 
-        self._cleanup = JobsQueue()
+        self._cleanup: JobsQueue = JobsQueue()
+        self._cache: FileCache = FileCache('/tmp/usbackup-filecache')
 
         self._logger: logging.Logger = self._gen_logger(params.get('log_file', ''), params.get('log_level', 'INFO'))
         self._snapshots: list[UsBackupSnapshot] = self._gen_snapshots(params.get('snapshot_names'), config)
@@ -118,7 +120,7 @@ class UsBackupManager:
             snapshot_config = config.get(snapshot_name)
             snapshot_config = {**global_config, **snapshot_config}
 
-            snapshots.append(UsBackupSnapshot(snapshot_name, snapshot_config, cleanup=self._cleanup, logger=self._logger))
+            snapshots.append(UsBackupSnapshot(snapshot_name, snapshot_config, cleanup=self._cleanup, cache=self._cache, logger=self._logger))
 
         return snapshots
     
@@ -177,6 +179,8 @@ class UsBackupManager:
                 })
 
     async def _run_backup(self, *, service: bool = False) -> None:
+        self._cleanup.add_job('persist_cache', self._cache.persist)
+
         if not service:
             # run once
             await self._do_backup()
