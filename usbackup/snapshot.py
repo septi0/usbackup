@@ -173,7 +173,7 @@ class UsBackupSnapshot:
         
         for mountpoint in self._mountpoints:
             try:
-                await cmd_exec.mounted(self._mountpoint)
+                await cmd_exec.mounted(mountpoint)
                 continue
             except (Exception) as e:
                 pass
