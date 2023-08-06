@@ -73,7 +73,7 @@ async def mounted(mount: str):
     if not mount:
         raise CmdExecError("Mount dir not specified")
 
-    return await exec_cmd(["mount", "|", "grep", mount])
+    return await exec_cmd(["mountpoint", "-q", mount])
 
 async def rsync(src: str, dst: str, *, options: list = [], ssh_port: int = None, ssh_password: str = None):
     if not src or not dst:
