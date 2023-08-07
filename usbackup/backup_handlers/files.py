@@ -72,9 +72,9 @@ class FilesHandler(BackupHandler):
             if not os.path.isabs(src):
                 raise UsbackupConfigError(f'Invalid backup_files source: "{src}"')
 
-            # make sure paths don't end with a slash
-            if src.endswith('/'):
-                src = src[:-1]
+            # make sure paths end with a slash
+            if not src.endswith('/'):
+                src += '/'
 
             result.append(src)
 
