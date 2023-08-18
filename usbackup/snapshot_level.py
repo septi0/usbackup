@@ -8,7 +8,7 @@ import usbackup.cmd_exec as cmd_exec
 from usbackup.aio_files import afread, afwrite
 from usbackup.jobs_queue import JobsQueue
 from usbackup.file_cache import FileCache
-from usbackup.exceptions import UsbackupConfigError
+from usbackup.exceptions import UsbackupConfigError, UsbackupError
 from usbackup.backup_handlers.base import BackupHandler
 
 __all__ = ['UsBackupSnapshotLevel']
@@ -69,8 +69,7 @@ class UsBackupSnapshotLevel:
         level_run_time = datetime.datetime.now()
 
         if await self._lock_file_exists():
-            self._logger.fatal(f'Backup for level {self._name} already running')
-            return
+            raise UsbackupError(f'Backup already running')
 
         self._logger.info(f'Backup started at {level_run_time}')
 

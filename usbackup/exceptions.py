@@ -4,6 +4,9 @@ class GracefulExit(SystemExit):
 class UsbackupConfigError(Exception):
     pass
 
+class UsbackupError(Exception):
+    pass
+
 class CmdExecError(Exception):
     pass
 

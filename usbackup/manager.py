@@ -245,16 +245,19 @@ class UsBackupManager:
     async def _do_backup(self, *, exclude: list = []) -> None:
         tasks = []
 
-        try:
-            for snapshot in self._snapshots:
-                if snapshot.name in exclude:
-                    continue
+        for (index, snapshot) in enumerate(self._snapshots):
+            if snapshot.name in exclude:
+                continue
 
-                tasks.append(asyncio.create_task(snapshot.backup_if_needed(exclude=exclude)))
+            tasks.append(asyncio.create_task(snapshot.backup_if_needed(exclude=exclude), name=index))
             
-            await asyncio.gather(*tasks)
-        except (Exception) as e:
-            self._logger.exception(e, exc_info=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+        for task in tasks:
+            snapshot = self._snapshots[int(task.get_name())]
+
+            if isinstance(task.exception(), Exception):
+                snapshot.logger.exception(task.exception(), exc_info=True)
 
     def _format_du(self, snapshot_usage: dict) -> str:
         if not snapshot_usage:

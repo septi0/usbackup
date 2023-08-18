@@ -79,17 +79,23 @@ class UsBackupSnapshot:
             await cmd_exec.exec_cmd(self._pre_backup_cmd)
 
         tasks = []
+        finalized_backups = []
 
         # backup levels
-        for level in levels_to_backup:
-            tasks.append(asyncio.create_task(level.backup()))
+        for (index, level) in enumerate(levels_to_backup):
+            tasks.append(asyncio.create_task(level.backup(), name=index))
 
-        try:
-            await asyncio.gather(*tasks)
-        except (Exception) as e:
-            self._logger.exception(e, exc_info=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-        await self._run_report_handlers(levels_to_backup)
+        for task in tasks:
+            level = levels_to_backup[int(task.get_name())]
+
+            if isinstance(task.exception(), Exception):
+                level.logger.exception(task.exception(), exc_info=True)
+            else:
+                finalized_backups.append(level)
+
+        await self._run_report_handlers(finalized_backups)
 
         # run post backup command
         if self._post_backup_cmd:
@@ -184,6 +190,9 @@ class UsBackupSnapshot:
 
     async def _run_report_handlers(self, levels: list) -> None:
         report = []
+
+        if not levels:
+            return
 
         for level in levels:
             report.append(await level.get_backup_report())
