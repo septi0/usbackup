@@ -1,5 +1,6 @@
 __app_name__ = "UsBackup"
-__version__ = "0.1.8"
+__package_name__ = "usbackup"
+__version__ = "0.1.9"
 __description__ = "A linux backup tool featuring snapshots, retention policies, backup handlers and report handlers"
 __author__ = "Septimiu Ujica"
 __author_email__ = "me@septi.ro"
