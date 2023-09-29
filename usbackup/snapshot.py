@@ -56,8 +56,6 @@ class UsBackupSnapshot:
 
         self._logger.debug(f"Checking backup for time {snapshot_run_time}")
 
-        await self._ensure_mountpoints()
-
         for level in self._levels:
             backup_needed = await level.backup_needed(exclude=exclude)
             if backup_needed:
@@ -69,6 +67,8 @@ class UsBackupSnapshot:
             return
         
         self._logger.info("Starting backup")
+
+        await self._ensure_mountpoints()
 
         if len(levels_to_backup) > 1:
             self._logger.warning('More than one level to backup. Performance may be degraded')

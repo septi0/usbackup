@@ -4,6 +4,7 @@ import signal
 import math
 import datetime
 import asyncio
+import random
 from configparser import ConfigParser
 from usbackup.jobs_queue import JobsQueue
 from usbackup.file_cache import FileCache
@@ -145,6 +146,7 @@ class UsBackupManager:
             self._logger.exception(e, exc_info=True)
         finally:
             try:
+                # run cleanup jobs before exiting
                 self._logger.info("Running cleanup jobs")
                 loop.run_until_complete(self._cleanup.run_jobs())
                 
@@ -218,6 +220,11 @@ class UsBackupManager:
             if time_left < 0:
                 self._logger.fatal(f'Behind schedule by {abs(int(time_left / 60)) + 1} m')
                 break
+
+            # persist cache with a probability of 30%
+            if random.random() < 0.3:
+                self._logger.debug('Persisting cache')
+                self._cache.persist()
 
             self._logger.debug(f'Next run in {time_left} s')
 

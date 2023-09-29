@@ -31,19 +31,17 @@ def main():
       parser.print_help()
       sys.exit()
 
-    options = {
-        'config_files': args.config_files,
-        'snapshot_names': args.snapshot_names,
-        'log_file': args.log_file,
-        'log_level': args.log_level,
-    }
-
     # if commands configtest or du are used, only log errors
     if args.command in ['configtest', 'du']:
-        options['log_level'] = 'ERROR'
+        args.log_level = 'ERROR'
 
     try:
-        usbackup = UsBackupManager(options)
+        usbackup = UsBackupManager({
+            'config_files': args.config_files,
+            'snapshot_names': args.snapshot_names,
+            'log_file': args.log_file,
+            'log_level': args.log_level,
+        })
     except UsbackupConfigError as e:
         print(f"Config error: {e}\nCheck documentation for more information on how to configure usbackup snapshots")
         sys.exit(2)
