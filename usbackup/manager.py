@@ -4,7 +4,6 @@ import signal
 import math
 import datetime
 import asyncio
-import random
 from configparser import ConfigParser
 from usbackup.jobs_queue import JobsQueue
 from usbackup.file_cache import FileCache
@@ -227,8 +226,8 @@ class UsBackupManager:
                 self._logger.fatal(f'Behind schedule by {abs(int(time_left / 60)) + 1} m')
                 break
 
-            # persist cache with a probability of 30%
-            if random.random() < 0.3:
+            # persist cache every 5 minutes
+            if datetime.datetime.now().minute % 5 == 0:
                 self._logger.info('Persisting cache')
                 self._cache.persist()
 
