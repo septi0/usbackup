@@ -229,7 +229,7 @@ class UsBackupManager:
 
             # persist cache with a probability of 30%
             if random.random() < 0.3:
-                self._logger.debug('Persisting cache')
+                self._logger.info('Persisting cache')
                 self._cache.persist()
 
             self._logger.debug(f'Next run in {time_left} s')
