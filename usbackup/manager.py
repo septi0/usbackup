@@ -20,7 +20,7 @@ class UsBackupManager:
         config = self._parse_config(params.get('config_files'))
 
         self._cleanup: JobsQueue = JobsQueue()
-        self._cache: FileCache = FileCache('/tmp/usbackup-filecache')
+        self._cache: FileCache = FileCache(self._gen_cache_filepath())
 
         self._logger: logging.Logger = self._gen_logger(params.get('log_file', ''), params.get('log_level', 'INFO'))
         self._snapshots: list[UsBackupSnapshot] = self._gen_snapshots(params.get('snapshot_names'), config)
@@ -62,7 +62,13 @@ class UsBackupManager:
         if os.getuid() == 0:
             return '/var/run/usbackup.pid'
         else:
-            return '/tmp/usbackup.pid'
+            return os.path.expanduser('~/.usbackup.pid')
+        
+    def _gen_cache_filepath(self) -> str:
+        if os.getuid() == 0:
+            return '/var/cache/usbackup/filecache.json'
+        else:
+            return os.path.expanduser('~/.cache/usbackup/filecache.json')
     
     def _gen_logger(self, log_file: str, log_level: str) -> logging.Logger:
         levels = {

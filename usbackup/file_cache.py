@@ -17,6 +17,13 @@ class FileCache:
             self._cache = json.load(f)
 
     def persist(self) -> None:
+        # create parent dir if it doesn't exist
+        parent_dir = os.path.dirname(self._path)
+
+        if not os.path.exists(parent_dir):
+            os.makedirs(parent_dir)
+
+        # write cache to file
         with open(self._path, 'w') as f:
             json.dump(self._cache, f)
 
