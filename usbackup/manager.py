@@ -228,7 +228,7 @@ class UsBackupManager:
 
             # persist cache every 5 minutes
             if datetime.datetime.now().minute % 5 == 0:
-                self._logger.info('Persisting cache')
+                self._logger.debug('Persisting cache')
                 self._cache.persist()
 
             self._logger.debug(f'Next run in {time_left} s')
