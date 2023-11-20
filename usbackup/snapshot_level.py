@@ -110,10 +110,11 @@ class UsBackupSnapshotLevel:
         self._cache.set(f'{self._id}_last_backup_finish', level_finish_time.timestamp())
 
         elapsed_time = level_finish_time - level_run_time
+        elapsed_time_s = elapsed_time.total_seconds()
 
         await self._write_backup_report([f'Backup for level {self._name} finished at {level_finish_time}', f'Elapsed time: {elapsed_time}', ""])
 
-        self._logger.info(f'Backup finished at {level_finish_time}. Elapsed time: {elapsed_time}')
+        self._logger.info(f'Backup finished at {level_finish_time}. Elapsed time: {elapsed_time_s} seconds')
 
     async def get_backup_report(self) -> str:
         report_path = os.path.join(self._backup_dst, "backup.log")
