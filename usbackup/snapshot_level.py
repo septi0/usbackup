@@ -48,21 +48,22 @@ class UsBackupSnapshotLevel:
 
     async def backup_needed(self, *, exclude: list = []) -> bool:
         backup_needed = False
-        last_backup = await self.get_last_backup()
+        backup_stats = self.get_backup_stats()
 
         if self._type == 'schedule' and not 'schedule' in exclude:
-            backup_needed = self._check_backup_needed_by_schedule(last_backup)
+            backup_needed = self._check_backup_needed_by_schedule(backup_stats)
         elif self._type == 'age' and not 'age' in exclude:
-            backup_needed = self._check_backup_needed_by_age(last_backup)
+            backup_needed = self._check_backup_needed_by_age(backup_stats)
         elif self._type == 'on_demand' and not 'on_demand' in exclude:
             backup_needed = True
         
         return backup_needed
         
-    async def get_last_backup(self) -> dict:
+    def get_backup_stats(self) -> dict:
         return {
             'start': self._cache.get(f'{self._id}_last_backup_start', 0),
             'finish': self._cache.get(f'{self._id}_last_backup_finish', 0),
+            'versions': self._cache.get(f'{self._id}_versions', 0),
         }
     
     async def backup(self) -> None:
@@ -76,7 +77,7 @@ class UsBackupSnapshotLevel:
         self._cache.set(f'{self._id}_last_backup_start', level_run_time.timestamp())
         self._cache.set(f'{self._id}_last_backup_finish', 0)
     
-        await self._rotate_backups()
+        versions = await self._rotate_backups()
 
         if not os.path.isdir(self._backup_dst):
             self._logger.info(f'Creating directory {self._backup_dst}')
@@ -107,6 +108,7 @@ class UsBackupSnapshotLevel:
 
         level_finish_time = datetime.datetime.now()
 
+        self._cache.set(f'{self._id}_versions', (versions + 1) if versions != -1 else 1)
         self._cache.set(f'{self._id}_last_backup_finish', level_finish_time.timestamp())
 
         elapsed_time = level_finish_time - level_run_time
@@ -332,15 +334,17 @@ class UsBackupSnapshotLevel:
 
         return True
     
-    async def _rotate_backups(self) -> None:
+    async def _rotate_backups(self) -> int:        
         if not os.path.isdir(self._backup_dst):
-            return None
+            return 0
         
         rm_list = []
         mv_list = []
 
         if self._replicas == 1:
-            return None
+            return -1
+        
+        versions = 0
 
         for replica in range(self._replicas, 0, -1):
             src = os.path.join(self._label_path, "backup." + str(replica))
@@ -368,6 +372,10 @@ class UsBackupSnapshotLevel:
             self._logger.info(f'Moving {src} to {dst}')
 
             await cmd_exec.move(src, dst)
+            
+            versions += 1
+            
+        return versions
 
     async def _lock_file_exists(self) -> bool:
         lock_file = os.path.join(self._backup_dst, 'backup.lock')

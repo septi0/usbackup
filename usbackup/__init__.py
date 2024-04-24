@@ -21,6 +21,8 @@ def main():
     configtest_parser = subparsers.add_parser('configtest', help='Test configuration file (based on provided snapshots)')
 
     du_parser = subparsers.add_parser('du', help='Show disk usage of snapshots')
+    
+    stats_parser = subparsers.add_parser('stats', help='Show statistics of snapshots')
 
     backup_parser = subparsers.add_parser('backup', help='Backup snapshots')
     backup_parser.add_argument('--service', dest='service', action='store_true', help='Run as service. Wake up every minute to check if there are any backups to be performed')
@@ -51,6 +53,8 @@ def main():
     elif args.command == 'du':
         print("Checking disk usage of snapshots. This may take a while...\n")
         print(usbackup.du(format='string'))
+    elif args.command == 'stats':
+        print(usbackup.stats())
     elif args.command == 'backup':
         usbackup.backup(service=args.service)
 

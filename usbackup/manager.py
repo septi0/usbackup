@@ -4,6 +4,8 @@ import signal
 import math
 import datetime
 import asyncio
+import usbackup.backup_handlers as backup_handlers
+import usbackup.report_handlers as report_handlers
 from configparser import ConfigParser
 from usbackup.jobs_queue import JobsQueue
 from usbackup.file_cache import FileCache
@@ -29,6 +31,9 @@ class UsBackupManager:
 
     def du(self, *, format: str = 'dict') -> str | dict:
         return self._run_main(self._run_du, format=format)
+    
+    def stats(self) -> str:
+        return self._get_stats()
 
     def _parse_config(self, config_files: list[str]) -> dict:
         if not config_files:
@@ -253,6 +258,34 @@ class UsBackupManager:
             return self._format_du(output)
         else:
             return output
+        
+    def _get_stats(self) -> str:
+        output = ''
+        
+        for snapshot in self._snapshots:
+            output += f"[{snapshot.name}]:\n"
+            output += '  Levels:\n'
+            
+            for level in snapshot.levels:
+                backup_stats = level.get_backup_stats()
+                
+                if not backup_stats.get('start') or not backup_stats.get('finish'):
+                    output += f"    {level.name}:\n"
+                    output += f"    - Last backup: Never\n\n"
+                    continue
+                
+                start = datetime.datetime.fromtimestamp(backup_stats['start'])
+                finish = datetime.datetime.fromtimestamp(backup_stats['finish'])
+                
+                elapsed = finish - start
+                
+                output += f"    {level.name}:\n"
+                output += f"    - Last backup: {str(finish)}\n"
+                output += f"    - Backup duration: {str(elapsed)}\n"
+                output += f"    - Versions: {backup_stats.get('versions', 0)}\n"
+                output += '\n'
+
+        return output
 
     async def _do_backup(self, *, exclude: list = []) -> None:
         tasks = []

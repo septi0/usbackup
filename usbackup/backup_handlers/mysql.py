@@ -11,7 +11,7 @@ class MysqlHandler(BackupHandler):
         self._name: str = 'mysql'
         self._snapshot_name: str = snapshot_name
         
-        self._mysql_defaults_file: str = config.get("backup_mysql.defaults_file", '')
+        self._mysql_credentials_file: str = config.get("backup_mysql.credentials_file", '')
         self._mysql_hosts: list[Remote] = []
 
         try:
@@ -49,8 +49,8 @@ class MysqlHandler(BackupHandler):
             options = []
             
             # NOTE! defaults-file must be the first parameter!!!
-            if self._mysql_defaults_file:
-                options.append(('defaults-file', self._mysql_defaults_file))
+            if self._mysql_credentials_file:
+                options.append(('defaults-file', self._mysql_credentials_file))
             else:
                 options.append(('user', mysql_host.user))
                 options.append(('password', mysql_host.password))

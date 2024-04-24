@@ -112,6 +112,7 @@ async def ssh(command: list, host: str, user: str = None, *, port: int = None, p
 
     if password:
         cmd_prefix += ['sshpass', '-p', str(password)]
+        logging.warning('Using password in plain is insecure. Consider using ssh keys instead')
     else:
         ssh_opts += ['-o', 'PasswordAuthentication=No', '-o', 'BatchMode=yes']
 
@@ -129,6 +130,7 @@ async def scp(src: str, dst: str, *, port: int = None, password: str = None):
 
     if password:
         cmd_prefix += ['sshpass', '-p', str(password)]
+        logging.warning('Using password in plain is insecure. Consider using ssh keys instead')
     else:
         ssh_opts += ['-o', 'PasswordAuthentication=No', '-o', 'BatchMode=yes']
 
