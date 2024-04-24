@@ -11,8 +11,9 @@ Files can be backed up from local storage or from remote storage, also they can 
 ## Features
 
 - Backup files
-- Backup databases
+- Backup databases (mysql, postgresql)
 - Backup openwrt
+- Backup truenas config
 - Backup from local storage
 - Backup from remote storage
 - Backup to local storage
@@ -99,6 +100,7 @@ Commands:
   {configtest,du,backup}
     configtest          Test configuration file (based on provided snapshots)
     du                  Show disk usage of snapshots
+    stats               Show statistics of snapshots
     backup              Backup snapshots
       options:
         -h, --help            show this help message and exit
@@ -134,8 +136,11 @@ Section properties:
 - `backup_files.mode` - backup mode to be used when performing the files backup. Must be one of: incremental, full, archive
 **Note!** Archive mode is only available for local backups for now (backup_files.remote is incompatible with backup_files.mode=archive)
 - `backup_mysql` - mysql hosts to be backed up
-- `backup_mysql.defaults_file` - mysql credentials to be used when performing the backup
+- `backup_mysql.credentials_file` - mysql credentials to be used when performing the backup
+- `backup_postgresql` - postgresql hosts to be backed up
+- `backup_postgresql.credentials_file` - postgresql credentials to be used when performing the backup
 - `backup_openwrt` - openwrt hosts to be backed up
+- `backup_truenas` - truenas hosts to be backed up (config files)
 - `pre_backup_cmd` - command to be executed before the backup is started
 - `post_backup_cmd` - command to be executed after the backup is finished (regardless of the result)
 
