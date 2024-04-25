@@ -47,12 +47,12 @@ class PostgreSqlHandler(BackupHandler):
             report += [f'* "{postgresql_host.user}@{postgresql_host.host}" -> "{postgresql_dst}"', '']
             
             options = []
-            export = {}
+            env = {}
             
             if self._postgresql_credentials_file:
-                export['PGPASSFILE'] = self._postgresql_credentials_file
+                env['PGPASSFILE'] = self._postgresql_credentials_file
             else:
-                export['PGPASSWORD'] = postgresql_host.password
+                env['PGPASSWORD'] = postgresql_host.password
                 options.append(('user', postgresql_host.user))
 
             options = [
@@ -64,14 +64,8 @@ class PostgreSqlHandler(BackupHandler):
 
             cmd_options = cmd_exec.parse_cmd_options(options)
             
-            if export:
-                export_vars = ' '.join([f'{key}={value}' for key, value in export.items()])
-                cmd = ['export', export_vars, ';', 'pg_dumpall', *cmd_options]
-            else:
-                cmd = ['pg_dumpall', *cmd_options]
-            
             with open(dump_filepath, 'w') as stdout:
-                report_line = await cmd_exec.exec_cmd(cmd, stdout=stdout)
+                report_line = await cmd_exec.exec_cmd(['pg_dumpall', *cmd_options], stdout=stdout, env=env)
 
             report += [str(report_line), '']
 

@@ -4,10 +4,13 @@ from usbackup.exceptions import CmdExecError, ProcessError
 
 __all__ = ['exec_cmd', 'mkdir', 'copy', 'move', 'remove', 'mount', 'mount_all', 'umount', 'umount_all', 'mounted', 'rsync', 'tar', 'ssh', 'scp', 'du']
 
-async def exec_cmd(cmd: list, *, input: str = None, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE) -> str:
+async def exec_cmd(cmd: list, *, input: str = None, env=None, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE) -> str:
     logging.debug(f'Executing command: {[*cmd]}')
+    
+    if not env:
+        env = None
 
-    process = await asyncio.create_subprocess_exec(*cmd, stdin=stdin, stdout=stdout, stderr=stderr)
+    process = await asyncio.create_subprocess_exec(*cmd, stdin=stdin, stdout=stdout, stderr=stderr, env=env)
 
     if input:
         process.stdin.write(input.encode('utf-8'))
