@@ -111,7 +111,7 @@ Commands:
 
 For a sample configuration file see `config.sample.conf` file. Aditionally, you can copy the file to `/etc/usbackup/config.conf`, `/etc/opt/usbackup/config.conf` or `~/.config/usbackup/config.conf` (or where you want as long as you provide the `--config` parameter) and adjust the values to your needs.
 
-Each section in the configuration file is a **snapshot**. These sections are independent of each other and each needs to be configured separately. The only exception is the `[GLOBALS]` section which is used to configure global settings that will be used by all the snapshots.
+Each section in the configuration file is a **snapshot**. These sections are independent of each other and each needs to be configured separately. A snapshot represents a collection of backup actions (files, mysql, truenas, etc) that apply to a given remote host (or local). The only exception is the `[GLOBALS]` section which is used to configure global settings that will be used by all the snapshots.
 
 Section properties:
 - `report.email` - email address to be used when sending the email report. Leave empty to disable email reporting
