@@ -6,6 +6,7 @@ import hashlib
 import usbackup.cmd_exec as cmd_exec
 import usbackup.backup_handlers as backup_handlers
 import usbackup.report_handlers as report_handlers
+from usbackup.remote import Remote
 from usbackup.jobs_queue import JobsQueue
 from usbackup.file_cache import FileCache
 from usbackup.snapshot_level import UsBackupSnapshotLevel
@@ -24,7 +25,8 @@ class UsBackupSnapshot:
         self._logger: logging.Logger = logger.getChild(self._name)
 
         self._mountpoints: list[str] = shlex.split(config.get("mount", ""))
-        self._backup_dst: str = self._gen_backup_dst(config)
+        self._dest: str = self._gen_dest(config)
+        self._src_host: Remote = self._gen_src_host(config)
         self._levels: list[UsBackupSnapshotLevel] = self._gen_levels(config)
         self._report_handlers: list[ReportHandler] = self._gen_report_handlers(config)
         self._pre_backup_cmd: list[str] = shlex.split(config.get("pre_backup_cmd", ""))
@@ -121,14 +123,22 @@ class UsBackupSnapshot:
 
         return output
     
-    def _gen_backup_dst(self, config: dict) -> str:
-        backup_dst = config.get("destination")
+    def _gen_dest(self, config: dict) -> str:
+        dest = config.get("dest")
 
         # make sure we have a backup base
-        if not backup_dst:
-            raise UsbackupConfigError('No backup destination specified in config file')
+        if not dest:
+            raise UsbackupConfigError('No backup dest specified in config file')
         
-        return backup_dst
+        return dest
+    
+    def _gen_src_host(self, config: dict) -> Remote:
+        src_host = config.get('src-host', 'localhost')
+
+        try:
+            return Remote(src_host)
+        except ValueError:
+            raise UsbackupConfigError('Invalid src-host provided for backup')
 
     def _gen_levels(self, config: dict) -> list[UsBackupSnapshotLevel]:
         handlers = []
@@ -137,7 +147,7 @@ class UsBackupSnapshot:
             if not issubclass(backup_handler, BackupHandler):
                 raise TypeError(f"Backup handler {backup_handler} is not a subclass of BackupHandler")
             
-            handler = backup_handler(self._name, config)
+            handler = backup_handler(self._src_host, self._name, config)
 
             if(bool(handler)):
                 handlers.append(handler)
@@ -155,7 +165,7 @@ class UsBackupSnapshot:
             if not level_data:
                 continue
 
-            levels.append(UsBackupSnapshotLevel(level_data, backup_dst=self._backup_dst, handlers=handlers, cleanup=self._cleanup, cache=self._cache, logger=self._logger))
+            levels.append(UsBackupSnapshotLevel(level_data, dest=self._dest, handlers=handlers, cleanup=self._cleanup, cache=self._cache, logger=self._logger))
 
         return levels
 

@@ -6,25 +6,23 @@ __all__ = ['Remote']
 """
 Allwed remote formats:
     - hostname
+    - hostname:port
     - username@hostname
     - username@hostname:port
-    - username@hostname:port/password
-    - username@hostname/password
-    - hostname:port
-    - hostname:port/password
-    - hostname/password
+    - username:password@hostname:port
+    - username:password@hostname
 """
 
 class Remote:
     def __init__(self, remote: str, default_user: str = '', default_port: int = 0, default_password: str = ''):
         self._host: str = None
         self._user: str
-        self._port: int
         self._password: str
+        self._port: int
         self._local: bool
 
         if remote:
-            pattern = r'^(?:(?P<username>[^@]+)@)?(?P<hostname>[^:/]+)(?::(?P<port>\d+))?(?:/(?P<password>.+))?$'
+            pattern = r'^(?:(?P<username>[^:@]+)(?::(?P<password>[^@]+))?@)?(?P<hostname>[^:/]+)(?::(?P<port>\d+))?$'
 
             match = re.match(pattern, remote)
 
@@ -33,8 +31,8 @@ class Remote:
 
             self._host = match.group('hostname')
             self._user = match.group('username') or default_user
-            self._port = match.group('port') or default_port
             self._password = match.group('password') or default_password
+            self._port = match.group('port') or default_port
 
             self._local = True if (self._host == socket.gethostname() or self._host == 'localhost') else False
 
@@ -47,12 +45,12 @@ class Remote:
         return self._user
     
     @property
-    def port(self) -> int:
-        return self._port
-    
-    @property
     def password(self) -> str:
         return self._password
+    
+    @property
+    def port(self) -> int:
+        return self._port
 
     @property
     def local(self) -> bool:

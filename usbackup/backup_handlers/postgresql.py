@@ -7,26 +7,20 @@ from usbackup.remote import Remote
 from usbackup.exceptions import UsbackupConfigError, HandlerError
 
 class PostgreSqlHandler(BackupHandler):
-    def __init__(self, snapshot_name: str, config: dict):
+    def __init__(self, src_host: Remote, snapshot_name: str, config: dict):
         self._name: str = 'postgresql'
         self._snapshot_name: str = snapshot_name
         
-        self._postgresql_credentials_file: str = config.get("backup_postgresql.credentials_file", '')
-        self._postgresql_hosts: list[Remote] = []
+        self._src_host: Remote = src_host
+        self._credentials_file: str = config.get("backup.postgresql.credentials-file", '')
+        
+        self._use_handler: bool = bool(config.get("backup.postgresql", ''))
 
-        try:
-            for postgresql_host in shlex.split(config.get("backup_postgresql", '')):
-                self._postgresql_hosts.append(Remote(postgresql_host, 'root', 5432))
-        except ValueError:
-            raise UsbackupConfigError("Invalid postgresql host provided for postgresql")
-
-    async def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> list:
-        if not bool(self._postgresql_hosts):
+    async def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> None:
+        if not self._use_handler:
             raise HandlerError(f'Handler "{self._name}" not configured')
         
         logger = logger.getChild('postgresql')
-        
-        logger.info("* Backing up postgresql instances")
 
         postgresql_dst = os.path.join(backup_dst, 'postgresql')
 
@@ -36,43 +30,34 @@ class PostgreSqlHandler(BackupHandler):
 
         if backup_dst_link:
             backup_dst_link = os.path.join(backup_dst_link, 'postgresql')
-
-        report = []
         
-        for postgresql_host in self._postgresql_hosts:
-            dump_filename = f'database_{postgresql_host.host}.sql'
-            dump_filepath = os.path.join(postgresql_dst, dump_filename)
+        dump_filename = f'database_{self._src_host.host}.sql'
+        dump_filepath = os.path.join(postgresql_dst, dump_filename)
 
-            logger.info(f'Dumping postgresql databases for "{postgresql_host.user}@{postgresql_host.host}" to "{postgresql_dst}", filename "{dump_filename}"')
-            report += [f'* "{postgresql_host.user}@{postgresql_host.host}" -> "{postgresql_dst}"', '']
-            
-            options = []
-            env = {}
-            
-            if self._postgresql_credentials_file:
-                env['PGPASSFILE'] = self._postgresql_credentials_file
-            else:
-                env['PGPASSWORD'] = postgresql_host.password
-                options.append(('user', postgresql_host.user))
+        logger.info(f'Dumping postgresql databases for "{self._src_host.host}" to "{postgresql_dst}", filename "{dump_filename}"')
+        
+        options = []
+        env = {}
+        
+        if self._credentials_file:
+            env['PGPASSFILE'] = self._credentials_file
+        else:
+            env['PGPASSWORD'] = self._src_host.password
+            options.append(('user', self._src_host.user))
 
-            options = [
-                *options,
-                ('host', postgresql_host.host),
-                ('port', str(postgresql_host.port)),
-                ('file', dump_filepath),
-            ]
+        options = [
+            *options,
+            ('host', self._src_host.host),
+            ('port', str(self._src_host.port)),
+            ('file', dump_filepath),
+        ]
 
-            cmd_options = cmd_exec.parse_cmd_options(options)
-            
-            with open(dump_filepath, 'w') as stdout:
-                report_line = await cmd_exec.exec_cmd(['pg_dumpall', *cmd_options], stdout=stdout, env=env)
-
-            report += [str(report_line), '']
-
-        return report
+        cmd_options = cmd_exec.parse_cmd_options(options)
+        
+        await cmd_exec.exec_cmd(['pg_dumpall', *cmd_options], env=env)
     
     def __bool__(self) -> bool:
-        return bool(self._postgresql_hosts)
+        return self._use_handler
     
     @property
     def name(self) -> str:

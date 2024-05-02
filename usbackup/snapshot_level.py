@@ -6,6 +6,7 @@ import re
 import hashlib
 import usbackup.cmd_exec as cmd_exec
 from usbackup.aio_files import afread, afwrite
+from usbackup.remote import Remote
 from usbackup.jobs_queue import JobsQueue
 from usbackup.file_cache import FileCache
 from usbackup.exceptions import UsbackupConfigError, UsbackupError
@@ -14,7 +15,7 @@ from usbackup.backup_handlers.base import BackupHandler
 __all__ = ['UsBackupSnapshotLevel']
 
 class UsBackupSnapshotLevel:
-    def __init__(self, level_data: str, *, backup_dst: str, handlers: list, cleanup: JobsQueue, cache: FileCache, logger: logging.Logger) -> None:
+    def __init__(self, level_data: str, *, dest: str, handlers: list, cleanup: JobsQueue, cache: FileCache, logger: logging.Logger) -> None:
         self._handlers: list[BackupHandler] = handlers
 
         parsed_level_data = self._parse_level_data(level_data)
@@ -28,11 +29,11 @@ class UsBackupSnapshotLevel:
         self._cache: FileCache = cache
         self._logger: logging.Logger = logger.getChild(self._name)
 
-        self._label_path: str = os.path.join(backup_dst, self._name)
-        self._backup_dst: str = os.path.join(self._label_path, "backup.1")
-        self._backup_dst_link: str = self._gen_backup_dst_link()
+        self._label_path: str = os.path.join(dest, self._name)
+        self._dest: str = os.path.join(self._label_path, "backup.1")
+        self._dest_link: str = self._gen_dest_link()
 
-        self._id: str = hashlib.md5(self._backup_dst.encode()).hexdigest()
+        self._id: str = hashlib.md5(self._dest.encode()).hexdigest()
 
     @property
     def name(self) -> str:
@@ -44,7 +45,7 @@ class UsBackupSnapshotLevel:
     
     @property
     def backup_dst(self) -> str:
-        return self._backup_dst
+        return self._dest
 
     async def backup_needed(self, *, exclude: list = []) -> bool:
         backup_needed = False
@@ -79,29 +80,25 @@ class UsBackupSnapshotLevel:
     
         versions = await self._rotate_backups()
 
-        if not os.path.isdir(self._backup_dst):
-            self._logger.info(f'Creating directory {self._backup_dst}')
-            await cmd_exec.mkdir(self._backup_dst)
+        if not os.path.isdir(self._dest):
+            self._logger.info(f'Creating directory {self._dest}')
+            await cmd_exec.mkdir(self._dest)
 
         await self._create_lock_file()
         self._cleanup.add_job(f'remove_lock_{self._id}', self._remove_lock_file)
-
-        await self._truncate_backup_report()
-
-        await self._write_backup_report([f'Backup for level {self._name} started at {level_run_time}', ""])
+        
+        logger = self._logger.getChild('backup')
+        file_handler = logging.FileHandler(os.path.join(self._dest, "backup.log"))
+        formatter = logging.Formatter('%(asctime)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
         for handler in self._handlers:
             try:
-                await self._write_backup_report(f'Starting {handler.name} backup')
-                handler_report = await handler.backup(self._backup_dst, self._backup_dst_link, logger=self._logger)
+                logger.info(f'Starting {handler.name} backup')
+                await handler.backup(self._dest, self._dest_link, logger=logger)
             except (Exception) as e:
-                self._logger.exception(f'{handler.name} backup handler exception: {e}', exc_info=True)
-                handler_report = f'Exception: {e}'
-
-            if isinstance(handler_report, str):
-                handler_report = [handler_report]
-
-            await self._write_backup_report(handler_report)
+                logger.exception(f'{handler.name} backup handler exception: {e}', exc_info=True)
 
         await self._remove_lock_file()
         self._cleanup.remove_job(f'remove_lock_{self._id}')
@@ -114,12 +111,10 @@ class UsBackupSnapshotLevel:
         elapsed_time = level_finish_time - level_run_time
         elapsed_time_s = elapsed_time.total_seconds()
 
-        await self._write_backup_report([f'Backup for level {self._name} finished at {level_finish_time}', f'Elapsed time: {elapsed_time}', ""])
-
-        self._logger.info(f'Backup finished at {level_finish_time}. Elapsed time: {elapsed_time_s} seconds')
+        logger.info(f'Backup finished at {level_finish_time}. Elapsed time: {elapsed_time_s:.2f} seconds')
 
     async def get_backup_report(self) -> str:
-        report_path = os.path.join(self._backup_dst, "backup.log")
+        report_path = os.path.join(self._dest, "backup.log")
         report = ''
 
         if not os.path.isfile(report_path):
@@ -244,7 +239,7 @@ class UsBackupSnapshotLevel:
 
         return (name, replicas, type, options)
 
-    def _gen_backup_dst_link(self) -> str:
+    def _gen_dest_link(self) -> str:
         backup_dst_link = None
 
         if self._replicas > 1:
@@ -335,7 +330,7 @@ class UsBackupSnapshotLevel:
         return True
     
     async def _rotate_backups(self) -> int:        
-        if not os.path.isdir(self._backup_dst):
+        if not os.path.isdir(self._dest):
             return 0
         
         rm_list = []
@@ -378,37 +373,16 @@ class UsBackupSnapshotLevel:
         return versions
 
     async def _lock_file_exists(self) -> bool:
-        lock_file = os.path.join(self._backup_dst, 'backup.lock')
+        lock_file = os.path.join(self._dest, 'backup.lock')
 
         return os.path.isfile(lock_file)
 
     async def _create_lock_file(self) -> None:
-        lock_file = os.path.join(self._backup_dst, 'backup.lock')
+        lock_file = os.path.join(self._dest, 'backup.lock')
 
         await afwrite(lock_file, '')
 
     async def _remove_lock_file(self) -> None:
-        lock_file = os.path.join(self._backup_dst, 'backup.lock')
+        lock_file = os.path.join(self._dest, 'backup.lock')
 
         await cmd_exec.remove(lock_file)
-
-    async def _truncate_backup_report(self) -> None:
-        report_path = os.path.join(self._backup_dst, "backup.log")
-
-        if not os.path.isfile(report_path):
-            return None
-
-        # truncate file
-        await afwrite(report_path, "")
-
-    async def _write_backup_report(self, report: str | list) -> None:
-        report_path = os.path.join(self._backup_dst, "backup.log")
-
-        if not report:
-            return None
-
-        if not isinstance(report, list):
-            report = [report]
-
-        # append stats to file
-        await afwrite(report_path, "\n".join(report) + "\n", mode='a')

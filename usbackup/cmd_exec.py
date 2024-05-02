@@ -1,10 +1,14 @@
 import logging
 import asyncio
+from usbackup.remote import Remote
 from usbackup.exceptions import CmdExecError, ProcessError
 
 __all__ = ['exec_cmd', 'mkdir', 'copy', 'move', 'remove', 'mount', 'mount_all', 'umount', 'umount_all', 'mounted', 'rsync', 'tar', 'ssh', 'scp', 'du']
 
-async def exec_cmd(cmd: list, *, input: str = None, env=None, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE) -> str:
+async def exec_cmd(cmd: list, *, host: Remote = None, input: str = None, env=None, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE) -> str:
+    if host and not host.local:
+        cmd = gen_ssh_cmd(cmd, host)
+    
     logging.debug(f'Executing command: {[*cmd]}')
     
     if not env:
@@ -78,7 +82,7 @@ async def mounted(mount: str):
 
     return await exec_cmd(["mountpoint", "-q", mount])
 
-async def rsync(src: str, dst: str, *, options: list = [], ssh_port: int = None, ssh_password: str = None):
+async def rsync(src: str, dst: str, *, host: Remote = None, options: list = []):
     if not src or not dst:
         raise CmdExecError("Source or destination not specified")
 
@@ -86,14 +90,18 @@ async def rsync(src: str, dst: str, *, options: list = [], ssh_port: int = None,
 
     cmd_prefix = []
     ssh_opts = []
-
-    if ssh_port:
-        ssh_opts += ['-p', str(ssh_port)]
-
-    if ssh_password:
-        cmd_prefix += ['sshpass', '-p', str(ssh_password)]
-    else:
-        ssh_opts += ['-o', 'PasswordAuthentication=No', '-o', 'BatchMode=yes']
+    
+    if host and not host.local:
+        src = f'{host.user}@{host.host}:{src}'
+        
+        if host.password:
+            cmd_prefix += ['sshpass', '-p', str(host.password)]
+            logging.warning('Using password in plain is insecure. Consider using ssh keys instead')
+        else:
+            ssh_opts += ['-o', 'PasswordAuthentication=No', '-o', 'BatchMode=yes']
+            
+        if host.port:
+            ssh_opts += ['-p', str(host.port)]
 
     if ssh_opts:
         cmd_options += ['--rsh', f'ssh {" ".join(ssh_opts)}']
@@ -105,42 +113,6 @@ async def tar(dst: str, src: list[str]):
         raise CmdExecError("Source or destination not specified")
 
     return await exec_cmd(["tar", "-czf", dst, *src])
-
-async def ssh(command: list, host: str, user: str = None, *, port: int = None, password: str = None):
-    if not command or not host:
-        raise CmdExecError("Command or host not specified")
-
-    cmd_prefix = []
-    ssh_opts = []
-
-    if password:
-        cmd_prefix += ['sshpass', '-p', str(password)]
-        logging.warning('Using password in plain is insecure. Consider using ssh keys instead')
-    else:
-        ssh_opts += ['-o', 'PasswordAuthentication=No', '-o', 'BatchMode=yes']
-
-    if port:
-        ssh_opts += ['-p', str(port)]
-
-    return await exec_cmd([*cmd_prefix, 'ssh', *ssh_opts, f'{user}@{host}', *command])
-
-async def scp(src: str, dst: str, *, port: int = None, password: str = None):
-    if not src or not dst:
-        raise CmdExecError("Source or destination not specified")
-
-    cmd_prefix = []
-    ssh_opts = []
-
-    if password:
-        cmd_prefix += ['sshpass', '-p', str(password)]
-        logging.warning('Using password in plain is insecure. Consider using ssh keys instead')
-    else:
-        ssh_opts += ['-o', 'PasswordAuthentication=No', '-o', 'BatchMode=yes']
-
-    if port:
-        ssh_opts += ['-P', str(port)]
-
-    return await exec_cmd([*cmd_prefix, 'scp', *ssh_opts, src, dst])
 
 async def du(path: str, *, match: str = None):
     if not path:
@@ -165,3 +137,21 @@ def parse_cmd_options(options: list, *, use_equal: bool = True):
             cmd_options.append(f'--{option}')
 
     return cmd_options
+
+def gen_ssh_cmd(cmd: list, host: Remote) -> list:
+    if not cmd or not host:
+        raise CmdExecError("Command or host not specified")
+
+    cmd_prefix = []
+    ssh_opts = []
+
+    if host.password:
+        cmd_prefix += ['sshpass', '-p', str(host.password)]
+        logging.warning('Using password in plain is insecure. Consider using ssh keys instead')
+    else:
+        ssh_opts += ['-o', 'PasswordAuthentication=No', '-o', 'BatchMode=yes']
+
+    if host.port:
+        ssh_opts += ['-p', str(host.port)]
+        
+    return [*cmd_prefix, 'ssh', *ssh_opts, f'{host.user}@{host.host}', *cmd]
