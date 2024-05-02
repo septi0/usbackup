@@ -114,11 +114,11 @@ For a sample configuration file see `config.sample.conf` file. Aditionally, you 
 Each section in the configuration file is a **snapshot**. These sections are independent of each other and each needs to be configured separately. The only exception is the `[GLOBALS]` section which is used to configure global settings that will be used by all the snapshots.
 
 Section properties:
-- `report_email` - email address to be used when sending the email report. Leave empty to disable email reporting
-- `report_email.from` - email from address to be used in the email report
-- `report_email.command` - command to be used when sending the email report. Default: sendmail -t
-- `report_slack` - slack channel to be used when sending the slack report. Leave empty to disable slack reporting
-- `report_slack.token` - slack token to be used when sending the slack report
+- `report.email` - email address to be used when sending the email report. Leave empty to disable email reporting
+- `report.email.from` - email from address to be used in the email report
+- `report.email.command` - command to be used when sending the email report. Default: sendmail -t
+- `report.slack` - slack channel to be used when sending the slack report. Leave empty to disable slack reporting
+- `report.slack.token` - slack token to be used when sending the slack report
 - `src-host` - source remote host to be used when performing the backup
 - `dest=/tmp/backup` - destination path to be used when performing the backup
 - `levels` - backup levels to be used when performing the backup

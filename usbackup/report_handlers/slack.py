@@ -9,8 +9,8 @@ class SlackHandler(ReportHandler):
         self._snapshot_name: str = snapshot_name
         self._slack_api_url = 'https://slack.com/api/files.upload'
 
-        self._slack_channel: str = config.get("report_slack", "")
-        self._slack_token: str = config.get("report_slack.token", "")
+        self._slack_channel: str = config.get("report.slack", "")
+        self._slack_token: str = config.get("report.slack.token", "")
 
     async def report(self, content: list, *, logger: logging.Logger) -> None:
         if not bool(self._slack_channel):

@@ -9,9 +9,9 @@ class EmailHandler(ReportHandler):
         self._name: str = 'email'
 
         self._snapshot_name: str = snapshot_name
-        self._email_addresses: list[str] = shlex.split(config.get("report_email", ""))
-        self._email_command: str = shlex.split(config.get("report_email.command", "sendmail -t"))
-        self._from_address: str = config.get("report_email.from", "root@localhost")
+        self._email_addresses: list[str] = shlex.split(config.get("report.email", ""))
+        self._email_command: str = shlex.split(config.get("report.email.command", "sendmail -t"))
+        self._from_address: str = config.get("report.email.from", "root@localhost")
 
     async def report(self, content: list | str, *, logger: logging.Logger) -> None:
         if not bool(self._email_addresses):
