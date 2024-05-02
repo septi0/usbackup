@@ -119,7 +119,8 @@ Section properties:
 - `report_email.command` - command to be used when sending the email report. Default: sendmail -t
 - `report_slack` - slack channel to be used when sending the slack report. Leave empty to disable slack reporting
 - `report_slack.token` - slack token to be used when sending the slack report
-- `destination=/tmp/backup` - destination path to be used when performing the backup
+- `src-host` - source remote host to be used when performing the backup
+- `dest=/tmp/backup` - destination path to be used when performing the backup
 - `levels` - backup levels to be used when performing the backup
  Allowed format (1 per line): <level_name> <replicas> <trigger_type> <options>
   - `level_name` - name of the backup level. Must respect the following format: a-zA-Z0-9_-
@@ -129,31 +130,31 @@ Section properties:
     - `schedule` - any cron expression. Example: 0 0 * * * (every day at midnight)
     - `age` - number followed by m, h, d (minutes, hours, days). Example: 1d
     - `on_demand` - no options
-- `backup_files` - folders to be backed up
-- `backup_files.exclude` - files to be excluded from the backup
-- `backup_files.bwlimit` - bandwidth limit to be used when performing the backup
-- `backup_files.remote` - remote address to be used when performing the backup for the source files
-- `backup_files.mode` - backup mode to be used when performing the files backup. Must be one of: incremental, full, archive
+- `backup.files` - folders to be backed up
+- `backup.files.exclude` - files to be excluded from the backup
+- `backup.files.bwlimit` - bandwidth limit to be used when performing the backup
+- `backup.files.remote` - remote address to be used when performing the backup for the source files
+- `backup.files.mode` - backup mode to be used when performing the files backup. Must be one of: incremental, full, archive
 **Note!** Archive mode is only available for local backups for now (backup_files.remote is incompatible with backup_files.mode=archive)
-- `backup_mysql` - mysql hosts to be backed up
-- `backup_mysql.credentials_file` - mysql credentials to be used when performing the backup
-- `backup_postgresql` - postgresql hosts to be backed up
-- `backup_postgresql.credentials_file` - postgresql credentials to be used when performing the backup
-- `backup_openwrt` - openwrt hosts to be backed up
-- `backup_truenas` - truenas hosts to be backed up (config files)
+- `backup.mysql` - backup mysql on the specified host (1/0)
+- `backup.mysql.credentials-file` - mysql credentials to be used when performing the backup
+- `backup.postgresql` - backup postgresql the specified host (1/0)
+- `backup.postgresql.credentials-file` - postgresql credentials to be used when performing the backup
+- `backup.openwrt` - backup openwrt on the specified host (1/0)
+- `backup.truenas` - backup truenas on the specified host (1/0)
 - `pre_backup_cmd` - command to be executed before the backup is started
 - `post_backup_cmd` - command to be executed after the backup is finished (regardless of the result)
 
 Valid format for remote hosts:
 
 ```
-<user>@<host>:<port>/<password>
+<user>:<password>@<host>:<port>
 ```
 
 With all the fields except `host` being optional.
-If no user is specified, the `root` user will be used. If no port is specified, the default port will be used for that service. If no password is specified, depending on the service it will either use credentials files or it will try to use the ssh keys (recomended way).
+If no user is specified, the `root` user will be used. If no port is specified, the default port will be used for that service. If no password is specified, it will try to use ssh keys (recomended way).
 
-**Note!** Using passwords is not recommended as they will be stored as plain text in the configuration file, instead use ssh keys for file transfers / openwrt backups and credentials files for mysql backups.
+**Note!** Using passwords is not recommended as they will be stored as plain text in the configuration file, instead use ssh keys for file transfers / openwrt backups and credentials files for mysql/postgresql backups.
 
 ## Systemd service
 
