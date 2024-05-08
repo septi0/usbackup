@@ -25,7 +25,7 @@ class PostgreSqlHandler(BackupHandler):
         postgresql_dst = os.path.join(backup_dst, 'postgresql')
 
         if not os.path.isdir(postgresql_dst):
-            logger.info(f'Creating postgresql backup folder "{postgresql_dst}"')
+            logger.info(f'Creating "postgresql" backup folder "{postgresql_dst}"')
             await cmd_exec.mkdir(postgresql_dst)
 
         if backup_dst_link:

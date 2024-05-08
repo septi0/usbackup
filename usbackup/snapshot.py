@@ -137,7 +137,7 @@ class UsBackupSnapshot:
         src_host = config.get('src-host', 'localhost')
 
         try:
-            return Remote(src_host)
+            return Remote(src_host, default_user='root', default_port=22)
         except ValueError:
             raise UsbackupConfigError('Invalid src-host provided for backup')
 

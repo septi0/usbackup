@@ -29,7 +29,7 @@ class FilesHandler(BackupHandler):
         dest = os.path.join(dest, 'files')
 
         if not os.path.isdir(dest):
-            logger.info(f'Creating files backup folder "{dest}"')
+            logger.info(f'Creating "files" backup folder "{dest}"')
             await cmd_exec.mkdir(dest)
 
         if dest_link:

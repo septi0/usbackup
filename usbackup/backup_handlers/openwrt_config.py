@@ -23,7 +23,7 @@ class OpenwrtConfigHandler(BackupHandler):
         openwrt_config_dst = os.path.join(backup_dst, 'openwrt-config')
 
         if not os.path.isdir(openwrt_config_dst):
-            logger.info(f'Creating openwrt-config backup folder "{openwrt_config_dst}"')
+            logger.info(f'Creating "openwrt-config" backup folder "{openwrt_config_dst}"')
             await cmd_exec.mkdir(openwrt_config_dst)
 
         if backup_dst_link:

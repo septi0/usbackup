@@ -23,7 +23,7 @@ class TruenasConfigHandler(BackupHandler):
         truenas_config_dst = os.path.join(backup_dst, 'truenas-config')
 
         if not os.path.isdir(truenas_config_dst):
-            logger.info(f'Creating truenas-config backup folder "{truenas_config_dst}"')
+            logger.info(f'Creating "truenas-config" backup folder "{truenas_config_dst}"')
             await cmd_exec.mkdir(truenas_config_dst)
 
         if backup_dst_link:
