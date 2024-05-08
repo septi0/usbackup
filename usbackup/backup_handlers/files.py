@@ -8,11 +8,11 @@ from usbackup.remote import Remote
 from usbackup.exceptions import UsbackupConfigError, HandlerError
 
 class FilesHandler(BackupHandler):
+    handler: str = 'files'
+    
     def __init__(self, src_host: Remote, snapshot_name: str, config: dict):
-        self._name: str = 'files'
-        self._snapshot_name:str = snapshot_name
+        super().__init__(src_host, snapshot_name, config)
         
-        self._src_host: Remote = src_host
         self._src: list[str] = self._gen_backup_src(config.get("backup.files", ''))
         self._exclude: list[str] = shlex.split(config.get("backup.files.exclude", ''))
         self._bwlimit: str = config.get("backup.files.bwlimit")
@@ -22,7 +22,7 @@ class FilesHandler(BackupHandler):
 
     async def backup(self, dest: str, dest_link: str = None, *, logger: logging.Logger = None) -> list:
         if not self._use_handler:
-            raise HandlerError(f'Handler "{self._name}" not configured')
+            raise HandlerError(f'"files" handler not configured')
         
         logger = logger.getChild('files')
 
@@ -132,10 +132,3 @@ class FilesHandler(BackupHandler):
         stats = await cmd_exec.tar(destination_archive, sources)
 
         logger.debug(stats)
-    
-    def __bool__(self) -> bool:
-        return self._use_handler
-    
-    @property
-    def name(self) -> str:
-        return self._name

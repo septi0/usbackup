@@ -4,21 +4,21 @@ import logging
 import usbackup.cmd_exec as cmd_exec
 from usbackup.backup_handlers.base import BackupHandler
 from usbackup.remote import Remote
-from usbackup.exceptions import UsbackupConfigError, HandlerError
+from usbackup.exceptions import HandlerError
 
 class PostgreSqlHandler(BackupHandler):
+    handler: str = 'postgresql'
+    
     def __init__(self, src_host: Remote, snapshot_name: str, config: dict):
-        self._name: str = 'postgresql'
-        self._snapshot_name: str = snapshot_name
+        super().__init__(src_host, snapshot_name, config)
         
-        self._src_host: Remote = src_host
         self._credentials_file: str = config.get("backup.postgresql.credentials-file", '')
         
         self._use_handler: bool = bool(config.get("backup.postgresql", ''))
 
     async def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> None:
         if not self._use_handler:
-            raise HandlerError(f'Handler "{self._name}" not configured')
+            raise HandlerError(f'"postgresql" handler not configured')
         
         logger = logger.getChild('postgresql')
 
@@ -55,10 +55,3 @@ class PostgreSqlHandler(BackupHandler):
         cmd_options = cmd_exec.parse_cmd_options(options)
         
         await cmd_exec.exec_cmd(['pg_dumpall', *cmd_options], env=env)
-    
-    def __bool__(self) -> bool:
-        return self._use_handler
-    
-    @property
-    def name(self) -> str:
-        return self._name

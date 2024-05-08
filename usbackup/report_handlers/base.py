@@ -2,19 +2,20 @@ import logging
 from abc import ABC, abstractmethod, abstractproperty
 
 class ReportHandler(ABC):
+    handler: str = None
 
-    @abstractmethod
     def __init__(self, snapshot_name: str, config: dict):
-        pass
+        self._snapshot_name:str = snapshot_name
+        
+        self._use_handler: bool = False
 
     @abstractmethod
     async def report(self, content: list | str, *, logger: logging.Logger) -> None:
         pass
 
-    @abstractmethod
     def __bool__(self) -> bool:
-        pass
+        return self._use_handler
 
-    @abstractproperty
+    @property
     def name(self) -> str:
-        pass
+        return self.handler

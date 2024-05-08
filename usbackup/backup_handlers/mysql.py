@@ -4,21 +4,21 @@ import logging
 import usbackup.cmd_exec as cmd_exec
 from usbackup.backup_handlers.base import BackupHandler
 from usbackup.remote import Remote
-from usbackup.exceptions import UsbackupConfigError, HandlerError
+from usbackup.exceptions import HandlerError
 
 class MysqlHandler(BackupHandler):
+    handler: str = 'mysql'
+    
     def __init__(self, src_host: Remote, snapshot_name: str, config: dict):
-        self._name: str = 'mysql'
-        self._snapshot_name: str = snapshot_name
+        super().__init__(src_host, snapshot_name, config)
         
-        self._src_host: Remote = src_host
         self._credentials_file: str = config.get("backup.mysql.credentials-file", '')
         
         self._use_handler = bool(config.get("backup.mysql", ''))
 
     async def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> None:
         if not self._use_handler:
-            raise HandlerError(f'Handler "{self._name}" not configured')
+            raise HandlerError(f'"mysql" handler not configured')
         
         logger = logger.getChild('mysql')
 
@@ -62,10 +62,3 @@ class MysqlHandler(BackupHandler):
            
         with open(dump_filepath, 'w') as stdout:
             await cmd_exec.exec_cmd(['mysqldump', *cmd_options], stdout=stdout)
-    
-    def __bool__(self) -> bool:
-        return self._use_handler
-    
-    @property
-    def name(self) -> str:
-        return self._name

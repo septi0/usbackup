@@ -4,20 +4,19 @@ import logging
 import usbackup.cmd_exec as cmd_exec
 from usbackup.backup_handlers.base import BackupHandler
 from usbackup.remote import Remote
-from usbackup.exceptions import UsbackupConfigError, HandlerError
+from usbackup.exceptions import HandlerError
 
 class OpenwrtConfigHandler(BackupHandler):
+    handler: str = 'openwrt-config'
+    
     def __init__(self, src_host: Remote, snapshot_name: str, config: dict):
-        self._name: str = 'openwrt-config'
-        self._snapshot_name: str = snapshot_name
-        
-        self._src_host: Remote = src_host
+        super().__init__(src_host, snapshot_name, config)
         
         self._use_handler: bool = bool(config.get("backup.openwrt-config", ''))
 
     async def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> None:
         if not bool(self._use_handler):
-            raise HandlerError(f'Handler "{self._name}" not configured')
+            raise HandlerError(f'"openwrt-config" handler not configured')
         
         logger = logger.getChild('openwrt-config')
 
@@ -37,10 +36,3 @@ class OpenwrtConfigHandler(BackupHandler):
         logger.info(f'Copying backup from "{self._src_host.host}" to "{openwrt_config_dst}"')
         
         await cmd_exec.rsync(f'/tmp/backup-openwrt.tar.gz', openwrt_config_dst, host=self._src_host)
-
-    def __bool__(self) -> bool:
-        return self._use_handler
-    
-    @property
-    def name(self) -> str:
-        return self._name

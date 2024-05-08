@@ -4,20 +4,19 @@ import logging
 import usbackup.cmd_exec as cmd_exec
 from usbackup.backup_handlers.base import BackupHandler
 from usbackup.remote import Remote
-from usbackup.exceptions import UsbackupConfigError, HandlerError
+from usbackup.exceptions import HandlerError
 
 class TruenasConfigHandler(BackupHandler):
+    handler: str = 'truenas-config'
+    
     def __init__(self, src_host: Remote, snapshot_name: str, config: dict):
-        self._name: str = 'truenas-config'
-        self._snapshot_name: str = snapshot_name
-        
-        self._src_host: Remote = src_host
+        super().__init__(src_host, snapshot_name, config)
         
         self._use_handler: bool = bool(config.get("backup.truenas-config", ''))
 
     async def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> None:
         if not self._use_handler:
-            raise HandlerError(f'Handler "{self._name}" not configured')
+            raise HandlerError(f'"truenas-config" handler not configured')
         
         logger = logger.getChild('truenas-config')
 
@@ -34,10 +33,3 @@ class TruenasConfigHandler(BackupHandler):
         
         await cmd_exec.rsync('/data/freenas-v1.db', truenas_config_dst, host=self._src_host)
         await cmd_exec.rsync('/data/pwenc_secret', truenas_config_dst, host=self._src_host)
-    
-    def __bool__(self) -> bool:
-        return self._use_handler
-    
-    @property
-    def name(self) -> str:
-        return self._name

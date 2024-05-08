@@ -3,6 +3,7 @@ import datetime
 import shlex
 import asyncio
 import hashlib
+import re
 import usbackup.cmd_exec as cmd_exec
 import usbackup.backup_handlers as backup_handlers
 import usbackup.report_handlers as report_handlers
@@ -147,7 +148,8 @@ class UsBackupSnapshot:
             if not issubclass(backup_handler, BackupHandler):
                 raise TypeError(f"Backup handler {backup_handler} is not a subclass of BackupHandler")
             
-            handler = backup_handler(self._src_host, self._name, config)
+            handler_config = self._gen_handler_config('backup', backup_handler.handler, config)
+            handler = backup_handler(self._src_host, self._name, handler_config)
 
             if(bool(handler)):
                 handlers.append(handler)
@@ -176,12 +178,17 @@ class UsBackupSnapshot:
             if not issubclass(report_handler, ReportHandler):
                 raise TypeError(f"Report handler {report_handler} is not a subclass of ReportHandler")
             
-            handler = report_handler(self._name, config)
+            handler_config = self._gen_handler_config('report', report_handler.handler, config)
+            handler = report_handler(self._name, handler_config)
 
             if(bool(handler)):
                 handlers.append(handler)
 
         return handlers
+    
+    def _gen_handler_config(self, type: str, handler: str, config: dict) -> dict:
+        # return only keys that start with type.handler
+        return {k: v for k, v in config.items() if re.match(f"{type}\.{handler}($|\.)", k)}
 
     async def _ensure_mountpoints(self) -> None:
         if not self._mountpoints:

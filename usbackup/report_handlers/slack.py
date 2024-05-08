@@ -4,16 +4,20 @@ from usbackup.report_handlers.base import ReportHandler
 from usbackup.exceptions import HandlerError
 
 class SlackHandler(ReportHandler):
+    handler: str = 'slack'
+    
     def __init__(self, snapshot_name: str, config: dict):
-        self._name: str = 'slack'
-        self._snapshot_name: str = snapshot_name
+        super().__init__(snapshot_name, config)
+        
         self._slack_api_url = 'https://slack.com/api/files.upload'
 
         self._slack_channel: str = config.get("report.slack", "")
         self._slack_token: str = config.get("report.slack.token", "")
+        
+        self._use_handler: bool = bool(self._slack_channel)
 
     async def report(self, content: list, *, logger: logging.Logger) -> None:
-        if not bool(self._slack_channel):
+        if not self._use_handler:
             raise HandlerError(f'Handler "{self._name}" not configured')
 
         logger.info("* Sending report via slack")
@@ -37,10 +41,3 @@ class SlackHandler(ReportHandler):
 
         if resp.status_code != 200 or not resp.json().get('ok'):
             raise Exception(f'Slack exception: code: {resp.status_code}, response: {resp.text}')
-
-    def __bool__(self) -> bool:
-        return bool(self._slack_channel)
-
-    @property
-    def name(self) -> str:
-        return self._name
