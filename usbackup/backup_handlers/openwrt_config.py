@@ -35,4 +35,4 @@ class OpenwrtConfigHandler(BackupHandler):
 
         logger.info(f'Copying backup from "{self._src_host.host}" to "{openwrt_config_dst}"')
         
-        await cmd_exec.rsync(f'/tmp/backup-openwrt.tar.gz', openwrt_config_dst, host=self._src_host)
+        await cmd_exec.rsync(f'/tmp/backup-openwrt.tar.gz', openwrt_config_dst, host=self._src_host, options=['remove-source-files'])

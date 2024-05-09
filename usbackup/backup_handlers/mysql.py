@@ -1,6 +1,7 @@
 import os
 import shlex
 import logging
+import uuid
 import usbackup.cmd_exec as cmd_exec
 from usbackup.backup_handlers.base import BackupHandler
 from usbackup.remote import Remote
@@ -38,40 +39,98 @@ class MysqlHandler(BackupHandler):
         if backup_dst_link:
             backup_dst_link = os.path.join(backup_dst_link, 'mysql')
             
+        tmp_dest = os.path.join('/tmp', str(uuid.uuid4()))
+        
+        # backup mysql for all connections
         for mysql_host in self._mysql_hosts:
-            dump_filename = f'database_{mysql_host.host}.sql'
-            dump_temp_filepath = os.path.join('/tmp', dump_filename)
-            dump_final_filepath = os.path.join(mysql_dst, dump_filename)
+            mysql_opts = self._gen_mysql_opts(mysql_host)
             
-            options = []
+            # get databases
+            databases = await self._get_databases(mysql_opts)
             
-            # NOTE! defaults-file must be the first parameter!
-            if self._credentials_file:
-                options.append(('defaults-file', self._credentials_file))
-            else:
-                options.append(('user', mysql_host.user))
-                options.append(('password', mysql_host.password))
-
-            options = [
-                *options,
-                ('host', mysql_host.host),
-                ('port', str(mysql_host.port)),
-                ('column-statistics', '0'),
-                'no-tablespaces',
-                'all-databases',
-                'single-transaction',
-                'routines',
-                'triggers',
-                ('lock-tables', 'false'),
-                ('result-file', dump_temp_filepath)
-            ]
-
-            cmd_options = cmd_exec.parse_cmd_options(options)
-
-            logger.info(f'Generating mysql dump "{dump_temp_filepath}" on "{self._src_host.host}"')
+            if not databases:
+                logger.info(f'No databases found for "{mysql_host}"')
+                continue
             
-            await cmd_exec.exec_cmd(['mysqldump', *cmd_options], host=self._src_host)
+            tmp_conn_dest = os.path.join(tmp_dest, mysql_host.host)
             
+            # create tmp folder
+            logger.info(f'Creating tmp folder "{tmp_conn_dest}" on "{self._src_host.host}"')
+            
+            await cmd_exec.mkdir(tmp_conn_dest, host=self._src_host)
+            
+            for database in databases:
+                logger.info(f'Generating mysql dump for database "{database}" in "{tmp_conn_dest}" on "{self._src_host.host}"')
+                
+                # generate mysql dump for database
+                await self._mysqldump(database, tmp_conn_dest, mysql_opts)
+                
             logger.info(f'Copying mysql dump from "{self._src_host.host}" to "{mysql_dst}"')
+        
+            # copy connection dumps to local backup folder
+            await cmd_exec.rsync(tmp_conn_dest, mysql_dst, host=self._src_host, options=['recursive'])
+
+        logger.info(f'Deleting tmp folder "{tmp_dest}" on "{self._src_host.host}"')
+
+        # remove tmp folder
+        await cmd_exec.remove(tmp_dest, host=self._src_host)
+
+    def _gen_mysql_opts(self, mysql_host: Remote) -> list:
+        mysql_opts = []
+
+        if self._credentials_file:
+            with open(self._credentials_file, 'r') as f:
+                line = f.readline().strip()
+                
+            # extract user/password from file
+            user, password = line.split(':')
             
-            await cmd_exec.rsync(dump_temp_filepath, dump_final_filepath, host=self._src_host)
+            mysql_opts.append(('user', user))
+            mysql_opts.append(('password', password))
+        else:
+            mysql_opts.append(('user', mysql_host.user))
+            mysql_opts.append(('password', mysql_host.password))
+
+        mysql_opts.append(('host', mysql_host.host))
+        mysql_opts.append(('port', str(mysql_host.port)))
+
+        return mysql_opts
+    
+    async def _get_databases(self, mysql_opts: list) -> list:
+        databases = []
+        
+        cmd_options = [
+            *mysql_opts,
+            'silent',
+            'raw',
+            ('execute', 'SHOW DATABASES'),
+        ]
+        
+        cmd_options = cmd_exec.parse_cmd_options(cmd_options)
+        
+        result = await cmd_exec.exec_cmd(['mysql', *cmd_options], host=self._src_host)
+        
+        for database in result.splitlines():
+            # exclude system databases
+            if database not in ('information_schema', 'performance_schema', 'sys'):
+                databases.append(database)
+        
+        return databases
+    
+    async def _mysqldump(self, database: str, dump_dst: str, mysql_opts: list) -> None:
+        dump_filepath = os.path.join(dump_dst, f'{database}.sql')
+        
+        cmd_options = [
+            *mysql_opts,
+            ('column-statistics', '0'),
+            'no-tablespaces',
+            'single-transaction',
+            'routines',
+            'triggers',
+            ('lock-tables', 'false'),
+            ('result-file', dump_filepath)
+        ]
+
+        cmd_options = cmd_exec.parse_cmd_options(cmd_options)
+        
+        await cmd_exec.exec_cmd(['mysqldump', *cmd_options, database], host=self._src_host)

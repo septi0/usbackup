@@ -12,7 +12,7 @@ Files can be backed up from local storage or from remote storage, also they can 
 
 - Backup files
 - Backup databases (mysql, postgresql)
-- Backup openwrt
+- Backup openwrt config
 - Backup truenas config
 - Backup from local storage
 - Backup from remote storage
@@ -136,12 +136,12 @@ Section properties:
 - `backup.files.remote` - remote address to be used when performing the backup for the source files
 - `backup.files.mode` - backup mode to be used when performing the files backup. Must be one of: incremental, full, archive
 **Note!** Archive mode is only available for local backups for now (backup_files.remote is incompatible with backup_files.mode=archive)
-- `backup.mysql` - backup mysql on the specified host (1/0)
+- `backup.mysql` - specify mysql hosts
 - `backup.mysql.credentials-file` - mysql credentials to be used when performing the backup
-- `backup.postgresql` - backup postgresql the specified host (1/0)
+- `backup.postgresql` - specify postgresql hosts
 - `backup.postgresql.credentials-file` - postgresql credentials to be used when performing the backup
-- `backup.openwrt` - backup openwrt on the specified host (1/0)
-- `backup.truenas` - backup truenas on the specified host (1/0)
+- `backup.openwrt-config` - backup openwrt on the specified host (1/0)
+- `backup.truenas-config` - backup truenas on the specified host (1/0)
 - `pre_backup_cmd` - command to be executed before the backup is started
 - `post_backup_cmd` - command to be executed after the backup is finished (regardless of the result)
 
