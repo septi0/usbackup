@@ -29,8 +29,8 @@ class UsBackupSnapshotLevel:
         self._cache: FileCache = cache
         self._logger: logging.Logger = logger.getChild(self._name)
 
-        self._label_path: str = os.path.join(dest, self._name)
-        self._dest: str = os.path.join(self._label_path, "backup.1")
+        self._level_path: str = os.path.join(dest, self._name)
+        self._dest: str = os.path.join(self._level_path, "backup.1")
         self._dest_link: str = self._gen_dest_link()
 
         self._id: str = hashlib.md5(self._dest.encode()).hexdigest()
@@ -94,9 +94,19 @@ class UsBackupSnapshotLevel:
         logger.addHandler(file_handler)
 
         for handler in self._handlers:
+            handler_dest = os.path.join(self._dest, handler.name)
+            handler_dest_link = None
+            
+            if self._dest_link:
+                handler_dest_link = os.path.join(self._dest_link, handler.name)
+                
             try:
+                if not os.path.isdir(handler_dest):
+                    logger.info(f'Creating backup folder "{handler_dest}"')
+                    await cmd_exec.mkdir(handler_dest)
+                
                 logger.info(f'Starting {handler.name} backup')
-                await handler.backup(self._dest, self._dest_link, logger=logger)
+                await handler.backup(handler_dest, handler_dest_link, logger=logger)
             except (Exception) as e:
                 logger.exception(f'{handler.name} backup handler exception: {e}', exc_info=True)
 
@@ -131,10 +141,10 @@ class UsBackupSnapshotLevel:
             'versions': []
         }
 
-        if not os.path.isdir(self._label_path):
+        if not os.path.isdir(self._level_path):
             return output
 
-        usage = await cmd_exec.du(self._label_path, match='backup.*')
+        usage = await cmd_exec.du(self._level_path, match='backup.*')
 
         if not usage:
             return output
@@ -243,7 +253,7 @@ class UsBackupSnapshotLevel:
         backup_dst_link = None
 
         if self._replicas > 1:
-            backup_dst_link = os.path.join(self._label_path, "backup.2")
+            backup_dst_link = os.path.join(self._level_path, "backup.2")
 
             if os.path.isdir(backup_dst_link):
                 backup_dst_link = backup_dst_link
@@ -342,8 +352,8 @@ class UsBackupSnapshotLevel:
         versions = 0
 
         for replica in range(self._replicas, 0, -1):
-            src = os.path.join(self._label_path, "backup." + str(replica))
-            dst = os.path.join(self._label_path, "backup." + str(replica + 1))
+            src = os.path.join(self._level_path, "backup." + str(replica))
+            dst = os.path.join(self._level_path, "backup." + str(replica + 1))
 
             if replica == self._replicas:
                 rm_list.append(src)

@@ -26,15 +26,6 @@ class FilesHandler(BackupHandler):
         
         logger = logger.getChild('files')
 
-        dest = os.path.join(dest, 'files')
-
-        if not os.path.isdir(dest):
-            logger.info(f'Creating "files" backup folder "{dest}"')
-            await cmd_exec.mkdir(dest)
-
-        if dest_link:
-            dest_link = os.path.join(dest_link, 'files')
-
         if self._mode == 'incremental':
             logger.info('Using incremental backup mode')
 

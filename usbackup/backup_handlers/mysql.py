@@ -24,20 +24,11 @@ class MysqlHandler(BackupHandler):
         
         self._use_handler = bool(self._mysql_hosts)
 
-    async def backup(self, backup_dst: str, backup_dst_link: str = None, *, logger: logging.Logger = None) -> None:
+    async def backup(self, dest: str, dest_link: str = None, *, logger: logging.Logger = None) -> None:
         if not self._use_handler:
             raise HandlerError(f'"mysql" handler not configured')
         
         logger = logger.getChild('mysql')
-
-        mysql_dst = os.path.join(backup_dst, 'mysql')
-
-        if not os.path.isdir(mysql_dst):
-            logger.info(f'Creating "mysql" backup folder "{mysql_dst}"')
-            await cmd_exec.mkdir(mysql_dst)
-
-        if backup_dst_link:
-            backup_dst_link = os.path.join(backup_dst_link, 'mysql')
             
         tmp_dest = os.path.join('/tmp', str(uuid.uuid4()))
         
@@ -65,10 +56,10 @@ class MysqlHandler(BackupHandler):
                 # generate mysql dump for database
                 await self._mysqldump(database, tmp_conn_dest, mysql_opts)
                 
-            logger.info(f'Copying mysql dump from "{self._src_host.host}" to "{mysql_dst}"')
+            logger.info(f'Copying mysql dump from "{self._src_host.host}" to "{dest}"')
         
             # copy connection dumps to local backup folder
-            await cmd_exec.rsync(tmp_conn_dest, mysql_dst, host=self._src_host, options=['recursive'])
+            await cmd_exec.rsync(tmp_conn_dest, dest, host=self._src_host, options=['recursive'])
 
         logger.info(f'Deleting tmp folder "{tmp_dest}" on "{self._src_host.host}"')
 

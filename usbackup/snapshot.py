@@ -24,9 +24,11 @@ class UsBackupSnapshot:
         self._cleanup: JobsQueue = cleanup
         self._cache: FileCache = cache
         self._logger: logging.Logger = logger.getChild(self._name)
+        
+        self._validate_config(config)
 
         self._mountpoints: list[str] = shlex.split(config.get("mount", ""))
-        self._dest: str = self._gen_dest(config)
+        self._dest: str = config.get("dest")
         self._src_host: Remote = self._gen_src_host(config)
         self._levels: list[UsBackupSnapshotLevel] = self._gen_levels(config)
         self._report_handlers: list[ReportHandler] = self._gen_report_handlers(config)
@@ -124,14 +126,21 @@ class UsBackupSnapshot:
 
         return output
     
-    def _gen_dest(self, config: dict) -> str:
-        dest = config.get("dest")
-
-        # make sure we have a backup base
-        if not dest:
-            raise UsbackupConfigError('No backup dest specified in config file')
+    def _validate_config(self, config: dict) -> None:
+        if not config:
+            raise UsbackupConfigError('No config provided')
         
-        return dest
+        if not isinstance(config, dict):
+            raise UsbackupConfigError('Invalid config provided')
+        
+        if not config.get("dest"):
+            raise UsbackupConfigError('No dest provided in config')
+        
+        if not config.get("levels"):
+            raise UsbackupConfigError('No levels provided in config')
+        
+        if not any(k.startswith('backup.') for k in config.keys()):
+            raise UsbackupConfigError('No backup handlers provided in config')
     
     def _gen_src_host(self, config: dict) -> Remote:
         src_host = config.get('src-host', 'localhost')
@@ -155,9 +164,6 @@ class UsBackupSnapshot:
                 handlers.append(handler)
 
         backup_levels = config.get("levels")
-
-        if not backup_levels:
-            raise UsbackupConfigError('No backup levels specified in config file')
         
         backup_levels = backup_levels.strip().splitlines()
 
