@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import shlex
 from usbackup.remote import Remote
 from usbackup.exceptions import CmdExecError, ProcessError
 
@@ -82,7 +83,7 @@ async def mounted(mount: str, *, host: Remote = None):
 
     return await exec_cmd(["mountpoint", "-q", mount], host=host)
 
-async def rsync(src: str, dst: str, *, host: Remote = None, options: list = []):
+async def rsync(src: str | list, dst: str, *, host: Remote = None, options: list = []):
     if not src or not dst:
         raise CmdExecError("Source or destination not specified")
 
@@ -91,8 +92,15 @@ async def rsync(src: str, dst: str, *, host: Remote = None, options: list = []):
     cmd_prefix = []
     ssh_opts = []
     
+    if isinstance(src, str):
+        src = [src]
+    
     if host and not host.local:
-        src = f'{host.user}@{host.host}:{src}'
+        src[0] = f'{host.user}@{host.host}:{src[0]}'
+        
+        # prepend : to rest of the sources (if any)
+        if len(src) > 1:
+            src[1:] = [f':{s}' for s in src[1:]]
         
         if host.password:
             cmd_prefix += ['sshpass', '-p', str(host.password)]
@@ -106,7 +114,7 @@ async def rsync(src: str, dst: str, *, host: Remote = None, options: list = []):
     if ssh_opts:
         cmd_options += ['--rsh', f'ssh {" ".join(ssh_opts)}']
 
-    return await exec_cmd([*cmd_prefix, "rsync", *cmd_options, src, dst])
+    return await exec_cmd([*cmd_prefix, "rsync", *cmd_options, *src, dst])
 
 async def tar(dst: str, src: list[str], *, host: Remote = None):
     if not dst or not src:
@@ -129,7 +137,8 @@ def parse_cmd_options(options: list, *, use_equal: bool = True):
     for option in options:
         if isinstance(option, tuple):
             if use_equal:
-                cmd_options.append(f'--{option[0]}={option[1]}')
+                val = shlex.quote(option[1])
+                cmd_options.append(f'--{option[0]}={val}')
             else:
                 cmd_options.append(f'--{option[0]}')
                 cmd_options.append(option[1])
@@ -154,4 +163,4 @@ def gen_ssh_cmd(cmd: list, host: Remote) -> list:
     if host.port:
         ssh_opts += ['-p', str(host.port)]
         
-    return [*cmd_prefix, 'ssh', *ssh_opts, f'{host.user}@{host.host}', *cmd]
+    return [*cmd_prefix, 'ssh', *ssh_opts, f'{host.user}@{host.host}', 'exec', ' '.join(cmd)]

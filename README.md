@@ -11,7 +11,7 @@ Files can be backed up from local storage or from remote storage, also they can 
 ## Features
 
 - Backup files
-- Backup databases (mysql, postgresql)
+- Backup databases (mysql)
 - Backup openwrt config
 - Backup truenas config
 - Backup from local storage
@@ -138,8 +138,6 @@ Section properties:
 **Note!** Archive mode is only available for local backups for now (backup_files.remote is incompatible with backup_files.mode=archive)
 - `backup.mysql` - specify mysql hosts
 - `backup.mysql.credentials-file` - mysql credentials to be used when performing the backup
-- `backup.postgresql` - specify postgresql hosts
-- `backup.postgresql.credentials-file` - postgresql credentials to be used when performing the backup
 - `backup.openwrt-config` - backup openwrt on the specified host (1/0)
 - `backup.truenas-config` - backup truenas on the specified host (1/0)
 - `pre_backup_cmd` - command to be executed before the backup is started
@@ -154,7 +152,7 @@ Valid format for remote hosts:
 With all the fields except `host` being optional.
 If no user is specified, the `root` user will be used. If no port is specified, the default port will be used for that service. If no password is specified, it will try to use ssh keys (recomended way).
 
-**Note!** Using passwords is not recommended as they will be stored as plain text in the configuration file, instead use ssh keys for file transfers / openwrt backups and credentials files for mysql/postgresql backups.
+**Note!** Using passwords is not recommended as they will be stored as plain text in the configuration file, instead use ssh keys for file transfers / openwrt backups and credentials files for mysql backups.
 
 ## Systemd service
 
