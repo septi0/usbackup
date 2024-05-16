@@ -92,6 +92,11 @@ class UsBackupSnapshotLevel:
         formatter = logging.Formatter('%(asctime)s - %(message)s')
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
+        
+        # truncate log file if it exists
+        if os.path.isfile(file_handler.baseFilename):
+            with open(file_handler.baseFilename, 'w') as f:
+                f.write('')
 
         for handler in self._handlers:
             handler_dest = os.path.join(self._dest, handler.name)
