@@ -131,14 +131,13 @@ async def du(path: str, *, host: Remote = None, match: str = None):
     else:
         return await exec_cmd(["du", "-sk", path], host=host)
 
-def parse_cmd_options(options: list, *, use_equal: bool = True):
+def parse_cmd_options(options: list, *, arg_separator: str = ''):
     cmd_options = []
     
     for option in options:
         if isinstance(option, tuple):
-            if use_equal:
-                val = shlex.quote(option[1])
-                cmd_options.append(f'--{option[0]}={val}')
+            if arg_separator:
+                cmd_options.append(f'--{option[0]}{arg_separator}{option[1]}')
             else:
                 cmd_options.append(f'--{option[0]}')
                 cmd_options.append(option[1])
@@ -163,4 +162,4 @@ def gen_ssh_cmd(cmd: list, host: Remote) -> list:
     if host.port:
         ssh_opts += ['-p', str(host.port)]
         
-    return [*cmd_prefix, 'ssh', *ssh_opts, f'{host.user}@{host.host}', 'exec', ' '.join(cmd)]
+    return [*cmd_prefix, 'ssh', *ssh_opts, f'{host.user}@{host.host}', 'exec', shlex.join(cmd)]

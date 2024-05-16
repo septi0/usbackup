@@ -97,7 +97,7 @@ class MysqlHandler(BackupHandler):
             ('execute', 'SHOW DATABASES'),
         ]
         
-        cmd_options = cmd_exec.parse_cmd_options(cmd_options)
+        cmd_options = cmd_exec.parse_cmd_options(cmd_options, arg_separator='=')
         
         result = await cmd_exec.exec_cmd(['mysql', *cmd_options], host=self._src_host)
         
@@ -122,6 +122,6 @@ class MysqlHandler(BackupHandler):
             ('result-file', dump_filepath)
         ]
 
-        cmd_options = cmd_exec.parse_cmd_options(cmd_options)
+        cmd_options = cmd_exec.parse_cmd_options(cmd_options, arg_separator='=')
         
         await cmd_exec.exec_cmd(['mysqldump', *cmd_options, database], host=self._src_host)
