@@ -14,6 +14,7 @@ Files can be backed up from local storage or from remote storage, also they can 
 - Backup databases (mysql)
 - Backup openwrt config
 - Backup truenas config
+- Backup zfs datasets
 - Backup from local storage
 - Backup from remote storage
 - Backup to local storage
@@ -136,10 +137,11 @@ Section properties:
 - `backup.files.remote` - remote address to be used when performing the backup for the source files
 - `backup.files.mode` - backup mode to be used when performing the files backup. Must be one of: incremental, full, archive
 **Note!** Archive mode is only available for local backups for now (backup_files.remote is incompatible with backup_files.mode=archive)
-- `backup.mysql` - specify mysql hosts
+- `backup.mysql` - specify mysql hosts to be backed up
 - `backup.mysql.credentials-file` - mysql credentials to be used when performing the backup
 - `backup.openwrt-config` - backup openwrt on the specified host (1/0)
 - `backup.truenas-config` - backup truenas on the specified host (1/0)
+- `backup.zfs-datasets` - list of zfs datasets to be backed up
 - `pre_backup_cmd` - command to be executed before the backup is started
 - `post_backup_cmd` - command to be executed after the backup is finished (regardless of the result)
 
