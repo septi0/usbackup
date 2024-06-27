@@ -15,9 +15,9 @@ Files can be backed up from local storage or from remote storage, also they can 
 - Backup openwrt config
 - Backup truenas config
 - Backup zfs datasets
-- Backup from local storage
-- Backup from remote storage
-- Backup to local storage
+- Backup from local host
+- Backup from remote host
+- Backup to local host
 - Independent snapshot configuration
 - Independent snapshot level configuration
 - Full backup
