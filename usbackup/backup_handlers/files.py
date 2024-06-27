@@ -16,6 +16,7 @@ class FilesHandler(BackupHandler):
         self._src: list[str] = self._gen_backup_src(config.get("backup.files", ''))
         self._exclude: list[str] = shlex.split(config.get("backup.files.exclude", ''))
         self._bwlimit: str = config.get("backup.files.bwlimit")
+        self._options: str = shlex.split(config.get("backup.files.options", ''))
         self._mode: str = self._gen_backup_mode(config)
         
         self._use_handler = bool(self._src)
@@ -79,6 +80,11 @@ class FilesHandler(BackupHandler):
                 'relative',
                 ('out-format', "%t %i %f"),
             ]
+            
+            if self._options:
+                for option in self._options:
+                    if 'no-relative' in option:
+                        options.remove('relative')
 
             if self._exclude:
                 for exclude in self._exclude:
