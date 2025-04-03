@@ -12,9 +12,10 @@ Files can be backed up from local storage or from remote storage, also they can 
 
 - Backup files
 - Backup databases (mysql)
-- Backup openwrt config
-- Backup truenas config
-- Backup zfs datasets
+- Backup OpenWRT config
+- Backup Truenas config
+- Backup Home Assistant config
+- Backup ZFS datasets
 - Backup from local host
 - Backup from remote host
 - Backup to local host
