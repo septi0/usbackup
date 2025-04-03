@@ -4,7 +4,7 @@ import shlex
 from usbackup.remote import Remote
 from usbackup.exceptions import CmdExecError, ProcessError
 
-__all__ = ['exec_cmd', 'mkdir', 'copy', 'move', 'remove', 'mount', 'mount_all', 'umount', 'umount_all', 'mounted', 'rsync', 'tar', 'ssh', 'scp', 'du']
+__all__ = ['exec_cmd', 'mkdir', 'copy', 'move', 'remove', 'mount', 'mount_all', 'umount', 'umount_all', 'mounted', 'rsync', 'scp', 'tar', 'du']
 
 async def exec_cmd(cmd: list, *, host: Remote = None, input: str = None, env=None, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE) -> str:
     if host and not host.local:
@@ -115,6 +115,34 @@ async def rsync(src: str | list, dst: str, *, host: Remote = None, options: list
         cmd_options += ['--rsh', f'ssh {" ".join(ssh_opts)}']
 
     return await exec_cmd([*cmd_prefix, "rsync", *cmd_options, *src, dst])
+
+async def scp(src: str, dst: str, *, host: Remote = None):
+    if not src or not dst:
+        raise CmdExecError("Source or destination not specified")
+
+    cmd_prefix = []
+    ssh_opts = []
+    
+    if isinstance(src, str):
+        src = [src]
+
+    if host and not host.local:
+        src[0] = f'{host.user}@{host.host}:{src[0]}'
+        
+        # prepend : to rest of the sources (if any)
+        if len(src) > 1:
+            src[1:] = [f':{s}' for s in src[1:]]
+        
+        if host.password:
+            cmd_prefix += ['sshpass', '-p', str(host.password)]
+            logging.warning('Using password in plain is insecure. Consider using ssh keys instead')
+        else:
+            ssh_opts += ['-o', 'PasswordAuthentication=No', '-o', 'BatchMode=yes']
+            
+        if host.port:
+            ssh_opts += ['-P', str(host.port)]
+
+    return await exec_cmd([*cmd_prefix, "scp", *ssh_opts, *src, dst])
 
 async def tar(dst: str, src: list[str], *, host: Remote = None):
     if not dst or not src:
