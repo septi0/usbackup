@@ -14,6 +14,7 @@ class ProxmoxVmsHandler(BackupHandler):
         
         self._exclude: list[str] = shlex.split(config.get("backup.proxmox-vms.exclude", ''))
         self._include: list[str] = shlex.split(config.get("backup.proxmox-vms.include", ''))
+        self._bwlimit: str = config.get("backup.proxmox-vms.bwlimit", '0')
         self._mode: str = config.get("backup.proxmox-vms.mode", 'snapshot')
         self._compress: str = config.get("backup.proxmox-vms.compress", 'zstd')
         
@@ -56,6 +57,9 @@ class ProxmoxVmsHandler(BackupHandler):
             logger.info(f'No VMs found to backup on "{self._src_host.host}"')
             return
         
+        logger.info(f'Backing up {len(vms)} VMs on "{self._src_host.host}"')
+        logger.debug(f'VMs to backup: {vms}')
+        
         for vm in vms:
             await self._backup_vm(vm, dest, logger=logger)
             
@@ -64,13 +68,14 @@ class ProxmoxVmsHandler(BackupHandler):
             ('mode', self._mode),
             ('compress', self._compress),
             ('notification-policy', 'never'),
+            ('bwlimit', self._bwlimit),
             'stdout',
             'quiet',
         ]
         
         cmd_options = cmd_exec.parse_cmd_options(cmd_options)
         file_name = f'vzdump-qemu-{vm}.{self._compression_types[self._compress]}'
-        
+
         with open(os.path.join(dest, file_name), 'wb') as f:
             logger.info(f'Performing vzdump for VM {vm} on "{self._src_host.host}"')
             
