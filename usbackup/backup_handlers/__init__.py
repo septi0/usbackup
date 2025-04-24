@@ -4,6 +4,7 @@ from usbackup.backup_handlers.openwrt_config import OpenwrtConfigHandler
 from usbackup.backup_handlers.truenas_config import TruenasConfigHandler
 from usbackup.backup_handlers.zfs_datasets import ZfsDatasetsHandler
 from usbackup.backup_handlers.homeassistant_config import HomeAssistantConfigHandler
+from usbackup.backup_handlers.proxmox_vms import ProxmoxVmsHandler
 
 __all__ = ['list']
 
@@ -14,4 +15,5 @@ list = [
     TruenasConfigHandler,
     ZfsDatasetsHandler,
     HomeAssistantConfigHandler,
+    ProxmoxVmsHandler,
 ]

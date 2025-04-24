@@ -14,8 +14,9 @@ Files can be backed up from local storage or from remote storage, also they can 
 - Backup databases (mysql)
 - Backup OpenWRT config
 - Backup Truenas config
-- Backup Home Assistant config
 - Backup ZFS datasets
+- Backup Home Assistant config
+- Backup Proxmox VMs
 - Backup from local host
 - Backup from remote host
 - Backup to local host
