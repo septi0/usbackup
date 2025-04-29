@@ -24,7 +24,7 @@ class UsBackupHost:
         
         self._log_stream: io.StringIO = io.StringIO()
         self._id: str = hashlib.md5(self._name.encode()).hexdigest()
-        self._version_format: str = '%Y-%m-%d_%H-%M-%S'
+        self._version_format: str = '%Y-%m-%d_%H:%M:%S'
         
         self._bind_stream_to_logger()
         
@@ -175,7 +175,7 @@ class UsBackupHost:
         }
         
         for version in versions:
-            date = datetime.datetime.strptime(version, '%Y-%m-%d_%H-%M-%S')
+            date = datetime.datetime.strptime(version, self._version_format)
             
             for category, attr in categories.items():
                 if not retention_policy.get(category):
