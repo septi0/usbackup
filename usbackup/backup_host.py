@@ -10,7 +10,7 @@ from usbackup.cleanup_queue import CleanupQueue
 from usbackup.file_cache import FileCache
 from usbackup.exceptions import UsbackupRuntimeError
 from usbackup.backup_result import UsbackupResult
-from usbackup.backup_handlers.base import BackupHandler
+from usbackup.backup_handlers.base import BackupHandler, BackupHandlerError
 
 __all__ = ['UsBackupHost']
 
@@ -101,9 +101,12 @@ class UsBackupHost:
                 
                 self._logger.info(f'Starting {handler.name} backup')
                 await handler.backup(handler_dest, handler_dest_link)
+            except (BackupHandlerError) as e:
+                self._logger.error(f'{handler.name} backup handler error: {e}', exc_info=True)
+                return_code = e.code
             except (Exception) as e:
                 self._logger.exception(f'{handler.name} backup handler exception: {e}', exc_info=True)
-                return_code = 99
+                return_code = 9999
                 
         versions = await self._apply_retention_policy(host_dest, retention_policy)
 

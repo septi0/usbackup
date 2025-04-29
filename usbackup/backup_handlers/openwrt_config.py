@@ -15,7 +15,10 @@ class OpenwrtConfigHandler(BackupHandler):
     async def backup(self, dest: str, dest_link: str = None) -> None:
         self._logger.info(f'Generating backup archive "/tmp/backup-openwrt.tar.gz" on "{self._src_host.host}"')
         
-        await cmd_exec.exec_cmd(['sysupgrade', '-b', '/tmp/backup-openwrt.tar.gz'], host=self._src_host)
+        try:
+            await cmd_exec.exec_cmd(['sysupgrade', '-b', '/tmp/backup-openwrt.tar.gz'], host=self._src_host)
+        except Exception as e:
+            raise BackupHandlerError(f'Failed to create backup: {e}', 1040)
 
         self._logger.info(f'Copying backup from "{self._src_host.host}" to "{dest}"')
         

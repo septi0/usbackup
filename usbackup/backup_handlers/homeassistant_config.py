@@ -17,17 +17,20 @@ class HomeAssistantConfigHandler(BackupHandler):
     async def backup(self, dest: str, dest_link: str = None) -> None:
         self._logger.info(f'Generating backup archive on "{self._src_host.host}"')
         
-        result = await cmd_exec.exec_cmd(['ha', 'backups', 'new', '--name', 'usbackup', '--raw-json', '--no-progress'], host=self._src_host)
+        try:
+            result = await cmd_exec.exec_cmd(['ha', 'backups', 'new', '--name', 'usbackup', '--raw-json', '--no-progress'], host=self._src_host)
+        except Exception as e:
+            raise BackupHandlerError(f'Failed to create backup: {e}', 1020)
         
         # convert result to json
         try:
             result = json.loads(result)
         except json.JSONDecodeError as e:
-            raise BackupHandlerError(f'Failed to parse JSON: {e}')
+            raise BackupHandlerError(f'Failed to parse JSON: {e}', 1021)
         
         # make sure result exists and is ok
         if 'result' not in result or 'data' not in result or result['result'] != 'ok':
-            raise BackupHandlerError(f'Invalid backup result: {result}')
+            raise BackupHandlerError(f'Invalid backup result: {result}', 1022)
         
         slug = result['data']['slug']
 
@@ -37,4 +40,7 @@ class HomeAssistantConfigHandler(BackupHandler):
         
         self._logger.info(f'Deleting backup archive on "{self._src_host.host}"')
         
-        await cmd_exec.exec_cmd(['ha', 'backups', 'remove', slug], host=self._src_host)
+        try:
+            await cmd_exec.exec_cmd(['ha', 'backups', 'remove', slug], host=self._src_host)
+        except Exception as e:
+            raise BackupHandlerError(f'Failed to delete backup: {e}', 1023)

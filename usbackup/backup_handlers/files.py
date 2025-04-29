@@ -20,7 +20,7 @@ class FilesHandler(BackupHandler):
         self._src_paths: list[str] = self._gen_backup_src(config.get("limit"))
         self._exclude: list[str] = config.get("exclude", [])
         self._bwlimit: str = config.get("bwlimit")
-        self._mode: str = config["backup_files.mode"]
+        self._mode: str = config["mode"]
         
         self._logger = logger
 
@@ -38,7 +38,7 @@ class FilesHandler(BackupHandler):
             
             await self._backup_tar(dest)
         else:
-            raise BackupHandlerError('Invalid backup mode')
+            raise BackupHandlerError('Invalid backup mode', 1030)
     
     def _gen_backup_src(self, limit: list) -> list[str]:
         src_paths = []
@@ -47,7 +47,7 @@ class FilesHandler(BackupHandler):
             for src in limit:
                 # make sure all sources are absolute paths
                 if not os.path.isabs(src):
-                    raise BackupHandlerError(f'Invalid limit list: "{src}"')
+                    raise BackupHandlerError(f'Invalid limit "{src}". Path must be absolute', 1031)
 
                 # make sure paths end with a slash
                 if not src.endswith('/'):
@@ -102,12 +102,12 @@ class FilesHandler(BackupHandler):
 
         for src in self._src_paths:
             if not self._src_host.local:
-                raise BackupHandlerError('Archive mode does not support remote backup')
+                raise BackupHandlerError('Archive mode does not support remote backup', 1032)
 
             sources.append(src)
 
         if not sources:
-            raise BackupHandlerError('No sources to archive')
+            raise BackupHandlerError('No sources to archive', 1033)
         
         self._logger.info(f'Archiving "{sources}" to "{destination_archive}"')
 

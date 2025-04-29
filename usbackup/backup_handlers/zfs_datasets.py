@@ -23,9 +23,10 @@ class ZfsDatasetsHandler(BackupHandler):
     async def backup(self, dest: str, dest_link: str = None) -> None:
         self._logger.info(f'Fetching datasets from "{self._src_host.host}"')
         
-        exec_ret = await cmd_exec.exec_cmd(['zfs', 'list', '-H', '-o', 'name'], host=self._src_host)
-        if not exec_ret:
-            raise BackupHandlerError(f'Failed to fetch datasets from "{self._src_host.host}"')
+        try:
+            exec_ret = await cmd_exec.exec_cmd(['zfs', 'list', '-H', '-o', 'name'], host=self._src_host)
+        except Exception as e:
+            raise BackupHandlerError(f'Failed to fetch datasets: {e}', 1010)
         
         datasets = [line.strip() for line in exec_ret.splitlines() if line.strip()]
         
@@ -53,13 +54,22 @@ class ZfsDatasetsHandler(BackupHandler):
             
             self._logger.info(f'Creating snapshot "{zfs_snapshot_name}" on "{self._src_host.host}"')
             
-            await cmd_exec.exec_cmd(['zfs', 'snapshot', zfs_snapshot_name], host=self._src_host)
+            try:
+                await cmd_exec.exec_cmd(['zfs', 'snapshot', zfs_snapshot_name], host=self._src_host)
+            except Exception as e:
+                raise BackupHandlerError(f'Failed to create snapshot: {e}', 1020)
             
             with open(os.path.join(dest, file_name), 'wb') as f:
                 self._logger.info(f'Streaming snapshot "{zfs_snapshot_name}" from "{self._src_host.host}" to "{dest}"')
                 
-                await cmd_exec.exec_cmd(['zfs', 'send', zfs_snapshot_name], stdout=f, host=self._src_host)
+                try:
+                    await cmd_exec.exec_cmd(['zfs', 'send', zfs_snapshot_name], stdout=f, host=self._src_host)
+                except Exception as e:
+                    raise BackupHandlerError(f'Failed to stream snapshot: {e}', 1021)
                 
             self._logger.info(f'Deleting snapshot "{zfs_snapshot_name}" on "{self._src_host.host}"')
             
-            await cmd_exec.exec_cmd(['zfs', 'destroy', zfs_snapshot_name], host=self._src_host)
+            try:
+                await cmd_exec.exec_cmd(['zfs', 'destroy', zfs_snapshot_name], host=self._src_host)
+            except Exception as e:
+                raise BackupHandlerError(f'Failed to delete snapshot: {e}', 1022)

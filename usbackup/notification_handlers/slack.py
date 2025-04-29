@@ -36,4 +36,4 @@ class SlackHandler(NotificationHandler):
         resp = await arequest_post(self._slack_api_url, headers=headers, params=params, files=files)
 
         if resp.status_code != 200 or not resp.json().get('ok'):
-            raise Exception(f'Slack exception: code: {resp.status_code}, response: {resp.text}')
+            raise NotificationHandlerError(f'Slack exception: code: {resp.status_code}, response: {resp.text}', 1001)

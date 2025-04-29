@@ -36,9 +36,10 @@ class ProxmoxVmsHandler(BackupHandler):
     async def backup(self, dest: str, dest_link: str = None) -> None:
         self._logger.info(f'Fetching VM list from "{self._src_host.host}"')
         
-        exec_ret = await cmd_exec.exec_cmd(['qm', 'list'], host=self._src_host)
-        if not exec_ret:
-            raise BackupHandlerError(f'Failed to fetch VM list from "{self._src_host.host}"')
+        try:
+            exec_ret = await cmd_exec.exec_cmd(['qm', 'list'], host=self._src_host)
+        except Exception as e:
+            raise BackupHandlerError(f'Failed to fetch VM list: {e}', 1001)
         
         vms = [int(line.split()[0]) for line in exec_ret.splitlines()[1:] if line.strip()]
         
@@ -78,4 +79,7 @@ class ProxmoxVmsHandler(BackupHandler):
         with open(os.path.join(dest, file_name), 'wb') as f:
             self._logger.info(f'Streaming vzdump for VM {vm} from "{self._src_host.host}" to "{dest}"')
             
-            await cmd_exec.exec_cmd(['vzdump', str(vm), *cmd_options], stdout=f, host=self._src_host)
+            try:
+                await cmd_exec.exec_cmd(['vzdump', str(vm), *cmd_options], stdout=f, host=self._src_host)
+            except Exception as e:
+                raise BackupHandlerError(f'Failed to create backup for VM {vm}: {e}', 1002)

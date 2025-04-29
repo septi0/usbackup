@@ -28,7 +28,10 @@ class EmailHandler(NotificationHandler):
 
         message = f'From: {self._from_address}\nTo: {to}\nSubject: {subject}\nMIME-Version: 1.0\nContent-Type: text/html; charset=UTF-8\n\n{body}'
 
-        await cmd_exec.exec_cmd(self._email_command, input=message)
+        try:
+            await cmd_exec.exec_cmd(self._email_command, input=message)
+        except Exception as e:
+            raise NotificationHandlerError(f'Email exception: {e}', 1011)
         
     def _gen_email_body(self, job_name: str, status: str, results: list[UsbackupResult]) -> str:
         # loop all results and get message key
