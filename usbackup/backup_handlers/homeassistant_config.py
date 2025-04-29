@@ -5,7 +5,7 @@ import usbackup.cmd_exec as cmd_exec
 from usbackup.backup_handlers.base import BackupHandler, BackupHandlerError
 from usbackup.remote import Remote
 
-class HomeAssistantConfigHandler(BackupHandler):
+class HomeassistantConfigHandler(BackupHandler):
     handler: str = 'homeassistant-config'
     lexicon: dict = {}
     
