@@ -9,8 +9,17 @@ class UsbackupNotifier:
         self._handlers: list[NotificationHandler] = handlers
         
         self._logger: logging.Logger = logger
-            
-    async def notify(self, name: str, status: str, results: list[UsbackupResult]) -> None:
+
+    async def notify(self, name: str, results: list[UsbackupResult], *, notification_policy: str = None) -> None:
+        errors = any(result.status != 'ok' for result in results)
+        status = 'ok' if not errors else 'failed'
+        
+        if notification_policy == 'never':
+            return
+        elif notification_policy == 'on-failure':
+            if not errors:
+                return
+        
         if not self._handlers:
             self._logger.warning("No notification handlers configured")
             return

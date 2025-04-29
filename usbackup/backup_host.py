@@ -52,8 +52,7 @@ class UsBackupHost:
         
         # test connection to host
         if not await cmd_exec.is_host_reachable(self._remote):
-            self._logger.error(f'Host {self._name} is not reachable')
-            return UsbackupResult(self._name, return_code=1, message=f'Host {self._name} is not reachable')
+            raise UsbackupRuntimeError(f'Host {self._name} is not reachable')
 
         self._logger.info(f'Backup started at {run_time}')
         
@@ -72,8 +71,8 @@ class UsBackupHost:
 
         await self._create_lock_file(host_dest)
         self._cleanup.add_job(f'remove_lock_{self._id}', self._remove_lock_file, host_dest)
-                
-        return_code = 0
+
+        error = None
 
         for handler in self._handlers:
             handler_dest = os.path.join(dest, handler.name)
@@ -91,10 +90,10 @@ class UsBackupHost:
                 await handler.backup(handler_dest, handler_dest_link)
             except (BackupHandlerError) as e:
                 self._logger.error(f'{handler.name} backup handler error: {e}', exc_info=True)
-                return_code = e.code
+                error = e
             except (Exception) as e:
                 self._logger.exception(f'{handler.name} backup handler exception: {e}', exc_info=True)
-                return_code = 9999
+                error = e
                 
         versions = await self._apply_retention_policy(host_dest, retention_policy)
 
@@ -109,7 +108,7 @@ class UsBackupHost:
         self._logger.info(f'Backup finished at {finish_time}. Elapsed time: {elapsed_time_s:.2f} seconds')
         self._logger.info(f'Backup versions: {versions}')
         
-        return UsbackupResult(self._name, return_code=return_code, message=self._log_stream.getvalue(), elapsed_time=elapsed_time, dest=host_dest)
+        return UsbackupResult(self._name, message=self._log_stream.getvalue(), error=error, elapsed_time=elapsed_time, dest=host_dest)
     
     def _bind_stream_to_logger(self) -> None:
         stream_handler = logging.StreamHandler(self._log_stream)

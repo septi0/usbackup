@@ -46,7 +46,7 @@ class UsBackupJob:
         
         for host in self._hosts:
             self._logger.info(f"Running backup for host {host.name}")
-            tasks.append(asyncio.create_task(self._semaphore_worker(host, semaphore=semaphore), name={host.name}))
+            tasks.append(asyncio.create_task(self._semaphore_worker(host, semaphore=semaphore), name=host.name))
                 
         # wait for all tasks to finish
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -54,7 +54,7 @@ class UsBackupJob:
         for task in tasks:
             if isinstance(task.exception(), Exception):
                 self._logger.exception(task.exception(), exc_info=True)
-                results.append(UsbackupResult(task, return_code=99, message=str(task.exception())))
+                results.append(UsbackupResult(task.get_name(), error=task.exception()))
             else:
                 results.append(task.result())
                 
@@ -65,7 +65,7 @@ class UsBackupJob:
         self._logger.info(f"Backup finished for host {str(host)}")
         
         # handle reporting
-        await self._send_report(results)
+        await self._notifier.notify(self._name, results, notification_policy=self._config.get('notification-policy'))
     
     async def _semaphore_worker(self, host: UsBackupHost, *, semaphore: asyncio.Semaphore) -> UsbackupResult:
         async with semaphore:
@@ -129,16 +129,3 @@ class UsBackupJob:
                 return False
 
         return False
-    
-    async def _send_report(self, results: list[UsbackupResult]) -> None:
-        notification_policy = self._config.get('notification-policy')
-        errors = any(result.return_code != 0 for result in results)
-        status = 'ok' if not errors else 'failed'
-        
-        if notification_policy == 'never':
-            return
-        elif notification_policy == 'on-failure':
-            if errors:
-                await self._notifier.notify(self._name, status, results)
-        elif notification_policy == 'always':
-            await self._notifier.notify(self._name, status, results)
