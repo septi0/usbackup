@@ -74,9 +74,12 @@ class UsBackupJob:
             return await host.backup(dest, self._config.get('retention-policy'))
     
     def is_job_due(self) -> bool:
-        cron_schedule = self._config.get('cron-schedule')
+        cron_schedule = self._config.get('schedule')
+        
+        self._logger.debug(f"Checking if job {self._name} is due with schedule {cron_schedule}")
         
         if not cron_schedule:
+            self._logger.debug(f"Job {self._name} has no cron schedule, running job")
             return True
         
         schedule = cron_schedule.split()

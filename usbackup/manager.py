@@ -267,6 +267,7 @@ class UsBackupManager:
             
         for job in backup_jobs:
             if job.is_job_due():
+                self._logger.info(f"Job {job.name} is due. Running it")
                 tasks.append(asyncio.create_task(job.run(), name=job.name))
         
         if not tasks:

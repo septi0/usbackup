@@ -36,17 +36,15 @@ class EmailHandler(NotificationHandler):
         details = ''
         
         for result in results:
-            status = result.status
-            
-            if status == 'ok':
-                status = '<strong style="color:green;">OK</strong>'
+            if result.status == 'ok':
+                status_str = '<strong style="color:green;">OK</strong>'
             else:
-                status = f'<strong style="color:red;">Failed</strong> <span>({result.error})</span>'
+                status_str = f'<strong style="color:red;">Failed</strong> <span>({result.error})</span>'
             
             summary_table += f'''
                 <tr>
                     <td>{result.name}</td>
-                    <td>{status}</td>
+                    <td>{status_str}</td>
                     <td>{result.elapsed_time}</td>
                     <td>{result.dest}</td>
                 </tr>
