@@ -22,7 +22,7 @@ class ProxmoxVmsHandler(BackupHandler):
         self._exclude: list[str] = config.get("exclude")
         self._bwlimit: str = config.get("bwlimit")
         self._mode: str = config.get("mode")
-        self._compress: str = config("compress")
+        self._compress: str = config.get("compress")
         
         self._logger: logging.Logger = logger
 
