@@ -34,39 +34,8 @@ class EmailHandler(NotificationHandler):
             raise NotificationHandlerError(f'Email exception: {e}', 1011)
         
     def _gen_email_body(self, job_name: str, status: str, results: list[UsbackupResult]) -> str:
-        # loop all results and get message key
-        details = [res.message for res in results if res.message]
-        details = "\n".join(details)
-        
-        content = f'''
-        <html>
-            <body>
-                <p>Backup job "{job_name}" finished with status "{status}".</p>
-                <h3>Summary</h3>
-                <table border="1" cellpadding="5" cellspacing="0">
-                    <thead>
-                        <tr>
-                            <th>Host</th>
-                            <th>Status</th>
-                            <th>Elapsed</th>
-                            <th>Destination</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {self._gen_summary_table(results)}
-                    </tbody>
-                </table>
-                <br>
-                <h3>Details</h3>
-                <pre>{details}</pre>
-            </body>
-        </html>
-        '''
-        
-        return content
-        
-    def _gen_summary_table(self, results: list[UsbackupResult]) -> str:
         summary_table = ''
+        details = ''
         
         for result in results:
             status = result.status
@@ -85,4 +54,34 @@ class EmailHandler(NotificationHandler):
                 </tr>
             '''
             
-        return summary_table
+            details += f'''
+                <h4>{result.name}</h4>
+                <pre>{result.message}</pre>
+            '''
+        
+        content = f'''
+        <html>
+            <body>
+                <p>Backup job "{job_name}" finished with status "{status}".</p>
+                <h3>Summary</h3>
+                <table border="1" cellpadding="5" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Host</th>
+                            <th>Status</th>
+                            <th>Elapsed</th>
+                            <th>Destination</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {summary_table}
+                    </tbody>
+                </table>
+                <br>
+                <h3>Details</h3>
+                {details}
+            </body>
+        </html>
+        '''
+        
+        return content
