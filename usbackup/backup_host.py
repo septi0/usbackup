@@ -180,7 +180,6 @@ class UsBackupHost:
             
             for category, attr in categories.items():
                 if not retention_policy.get(category):
-                    self._logger.debug(f'Category "{category}" not in retention policy. Skipping')
                     continue
                 
                 if not attr['prev']:
