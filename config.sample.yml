@@ -13,7 +13,8 @@ hosts:
     - handler: truenas_config # enable TrueNAS config backup
 
     - handler: zfs_datasets # enable ZFS datasets backup
-      datasets: [dataset1, dataset2] # list of datasets to backup
+      limit: [dataset1, dataset2] # list of datasets to backup - optional (if no datasets are provided, all datasets will be included, except the ones in the exclude list)
+      exclude: [dataset3] # list of datasets to exclude from the backup - optional
 
     - handler: homeassistant_config # enable Home Assistant config backup
 

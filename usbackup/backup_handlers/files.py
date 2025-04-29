@@ -4,25 +4,23 @@ import datetime
 import usbackup.cmd_exec as cmd_exec
 from usbackup.backup_handlers.base import BackupHandler, BackupHandlerError
 from usbackup.remote import Remote
-from usbackup.exceptions import UsbackupRuntimeError
 
 class FilesHandler(BackupHandler):
     handler: str = 'files'
     lexicon: dict = {
-        'mode': {'type': str, 'default': 'incremental', 'allowed': ['incremental', 'archive', 'full']},
         'limit': {'type': list},
         'exclude': {'type': list},
         'bwlimit': {'type': int},
+        'mode': {'type': str, 'default': 'incremental', 'allowed': ['incremental', 'archive', 'full']},
     }
     
     def __init__(self, src_host: Remote, config: dict, *, logger: logging.Logger) -> None:
         self._src_host: Remote = src_host
         
+        self._src_paths: list[str] = self._gen_backup_src(config.get("limit"))
         self._exclude: list[str] = config.get("exclude", [])
         self._bwlimit: str = config.get("bwlimit")
-        self._mode: str = config.get("backup_files.mode") or 'incremental'
-        
-        self._src_paths: list[str] = self._gen_backup_src(config.get("limit"))
+        self._mode: str = config["backup_files.mode"]
         
         self._logger = logger
 
@@ -49,7 +47,7 @@ class FilesHandler(BackupHandler):
             for src in limit:
                 # make sure all sources are absolute paths
                 if not os.path.isabs(src):
-                    raise UsbackupRuntimeError(f'Invalid limit list: "{src}"')
+                    raise BackupHandlerError(f'Invalid limit list: "{src}"')
 
                 # make sure paths end with a slash
                 if not src.endswith('/'):

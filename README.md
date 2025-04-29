@@ -2,7 +2,7 @@
 
 ## Description
 
-**UsBackup** is a backup software that allows files, databases, configs to be backed up in pull mode (via ssh). It is designed to run as a background process and to be as simple as possible.
+**UsBackup** is a backup software that allows files and configs to be backed up in pull mode (via ssh). It is designed to run as a background process and to be as simple as possible.
 
 It features a simple configuration file that allows you to configure different snapshots, snapshot levels, the backup sources and the backup destinations. It also features a simple reporting system that can send email or slack reports after the backup is finished either globally or for each snapshot.
 
@@ -33,7 +33,6 @@ Files can be backed up from local storage or from remote storage, also they can 
 
 - python3
 - rsync
-- mysqldump
 - tar
 - ssh
 - sshpass (if using passwords for remote hosts - not recommended)
@@ -111,40 +110,9 @@ Commands:
 
 ## Configuration file
 
-For a sample configuration file see `config.sample.conf` file. Aditionally, you can copy the file to `/etc/usbackup/config.conf`, `/etc/opt/usbackup/config.conf` or `~/.config/usbackup/config.conf` (or where you want as long as you provide the `--config` parameter) and adjust the values to your needs.
+For a sample configuration file see `config.sample.yml` file. Aditionally, you can copy the file to `/etc/usbackup/config.yml`, `/etc/opt/usbackup/config.yml` or `~/.config/usbackup/config.yml` (or where you want as long as you provide the `--config` parameter) and adjust the values to your needs.
 
-Each section in the configuration file is a **snapshot**. These sections are independent of each other and each needs to be configured separately. A snapshot represents a collection of backup actions (files, mysql, truenas, etc) that apply to a given remote host (or local). The only exception is the `[GLOBALS]` section which is used to configure global settings that will be used by all the snapshots.
-
-Section properties:
-- `report.email` - email address to be used when sending the email report. Leave empty to disable email reporting
-- `report.email.from` - email from address to be used in the email report
-- `report.email.command` - command to be used when sending the email report. Default: sendmail -t
-- `report.slack` - slack channel to be used when sending the slack report. Leave empty to disable slack reporting
-- `report.slack.token` - slack token to be used when sending the slack report
-- `src-host` - source remote host to be used when performing the backup
-- `dest=/tmp/backup` - destination path to be used when performing the backup
-- `levels` - backup levels to be used when performing the backup
- Allowed format (1 per line): <level_name> <replicas> <trigger_type> <options>
-  - `level_name` - name of the backup level. Must respect the following format: a-zA-Z0-9_-
-  - `replicas` - number of replicas to be kept. Must be a number
-  - `trigger_type` - what type of even will trigger the level backup. Must be one of: schedule, age, on_demand
-  - `options` - options for the trigger type.
-    - `schedule` - any cron expression. Example: 0 0 * * * (every day at midnight)
-    - `age` - number followed by m, h, d (minutes, hours, days). Example: 1d
-    - `on_demand` - no options
-- `backup.files` - folders to be backed up
-- `backup.files.exclude` - files to be excluded from the backup
-- `backup.files.bwlimit` - bandwidth limit to be used when performing the backup
-- `backup.files.remote` - remote address to be used when performing the backup for the source files
-- `backup.files.mode` - backup mode to be used when performing the files backup. Must be one of: incremental, full, archive
-**Note!** Archive mode is only available for local backups for now (backup_files.remote is incompatible with backup_files.mode=archive)
-- `backup.mysql` - specify mysql hosts to be backed up
-- `backup.mysql.credentials-file` - mysql credentials to be used when performing the backup
-- `backup.openwrt-config` - backup openwrt on the specified host (1/0)
-- `backup.truenas-config` - backup truenas on the specified host (1/0)
-- `backup.zfs-datasets` - list of zfs datasets to be backed up
-- `pre_backup_cmd` - command to be executed before the backup is started
-- `post_backup_cmd` - command to be executed after the backup is finished (regardless of the result)
+For details on how to configure the file, see the `config.sample.yml` file.
 
 Valid format for remote hosts:
 
@@ -155,7 +123,7 @@ Valid format for remote hosts:
 With all the fields except `host` being optional.
 If no user is specified, the `root` user will be used. If no port is specified, the default port will be used for that service. If no password is specified, it will try to use ssh keys (recomended way).
 
-**Note!** Using passwords is not recommended as they will be stored as plain text in the configuration file, instead use ssh keys for file transfers / openwrt backups and credentials files for mysql backups.
+**Note!** Using passwords is not recommended as they will be stored as plain text in the configuration file, instead use ssh keys for file transfers / configs.
 
 ## Systemd service
 

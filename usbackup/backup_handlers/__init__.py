@@ -8,6 +8,9 @@ def dynamic_loader(handler: str):
     if handler in _class_cache:
         return _class_cache[handler]
     
+    if handler == 'base':
+        raise ImportError("Base module cannot be loaded")
+    
     module = importlib.import_module(f'usbackup.backup_handlers.{handler}')
     handler_class = getattr(module, f'{handler.replace("_", " ").title().replace(" ", "")}Handler')
     

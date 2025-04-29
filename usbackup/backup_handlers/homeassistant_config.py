@@ -2,25 +2,20 @@ import os
 import logging
 import json
 import usbackup.cmd_exec as cmd_exec
-from usbackup.backup_handlers.base import BackupHandler
+from usbackup.backup_handlers.base import BackupHandler, BackupHandlerError
 from usbackup.remote import Remote
-from usbackup.exceptions import HandlerError
 
 class HomeAssistantConfigHandler(BackupHandler):
     handler: str = 'homeassistant-config'
+    lexicon: dict = {}
     
-    def __init__(self, src_host: Remote, snapshot_name: str, config: dict):
-        super().__init__(src_host, snapshot_name, config)
+    def __init__(self, src_host: Remote, config: dict, *, logger: logging.Logger = None):
+        self._src_host: Remote = src_host
         
-        self._use_handler: bool = bool(config.get("backup.homeassistant-config", ''))
+        self._logger: logging.Logger = logger
 
-    async def backup(self, dest: str, dest_link: str = None, *, logger: logging.Logger = None) -> None:
-        if not bool(self._use_handler):
-            raise HandlerError(f'"homeassistant-config" handler not configured')
-        
-        logger = logger.getChild('homeassistant-config')
-
-        logger.info(f'Generating backup archive on "{self._src_host.host}"')
+    async def backup(self, dest: str, dest_link: str = None) -> None:
+        self._logger.info(f'Generating backup archive on "{self._src_host.host}"')
         
         result = await cmd_exec.exec_cmd(['ha', 'backups', 'new', '--name', 'usbackup', '--raw-json', '--no-progress'], host=self._src_host)
         
@@ -28,18 +23,18 @@ class HomeAssistantConfigHandler(BackupHandler):
         try:
             result = json.loads(result)
         except json.JSONDecodeError as e:
-            raise HandlerError(f'Failed to parse JSON: {e}')
+            raise BackupHandlerError(f'Failed to parse JSON: {e}')
         
         # make sure result exists and is ok
         if 'result' not in result or 'data' not in result or result['result'] != 'ok':
-            raise HandlerError(f'Invalid backup result: {result}')
+            raise BackupHandlerError(f'Invalid backup result: {result}')
         
         slug = result['data']['slug']
 
-        logger.info(f'Copying backup from "{self._src_host.host}" to "{dest}"')
+        self._logger.info(f'Copying backup from "{self._src_host.host}" to "{dest}"')
         
         await cmd_exec.scp(f'/root/backup/{slug}.tar', os.path.join(dest, 'backup.tar'), host=self._src_host)
         
-        logger.info(f'Deleting backup archive on "{self._src_host.host}"')
+        self._logger.info(f'Deleting backup archive on "{self._src_host.host}"')
         
         await cmd_exec.exec_cmd(['ha', 'backups', 'remove', slug], host=self._src_host)
