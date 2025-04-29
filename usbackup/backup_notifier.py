@@ -26,6 +26,7 @@ class UsbackupNotifier:
         
         for handler in self._handlers:
             try:
+                self._logger.info(f'Sending notification via "{handler.name}" handler')
                 await handler.notify(name, status, results)
             except Exception as e:
                 self._logger.error(f"Failed to send notification via {handler.name}: {e}")

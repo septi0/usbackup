@@ -20,8 +20,6 @@ class EmailHandler(NotificationHandler):
         self._logger: logging.Logger = logger
 
     async def notify(self, job_name: str, status: str, results: list[UsbackupResult]) -> None:
-        self._logger.info("* Sending notification via email")
-
         to = ", ".join(self._email_addresses)
         body = self._gen_email_body(job_name, status, results)
         subject = f'Backup status ({job_name}): backup {status}'

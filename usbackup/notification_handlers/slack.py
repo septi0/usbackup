@@ -19,8 +19,6 @@ class SlackHandler(NotificationHandler):
         self._slack_api_url = 'https://slack.com/api/files.upload'
 
     async def notify(self, job_name: str, status: str, results: list[UsbackupResult]) -> None:
-        self._logger.info("* Sending notification via slack")
-        
         details = [res.message for res in results if res.message]
         details = "\n".join(details)
 

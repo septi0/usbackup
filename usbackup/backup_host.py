@@ -86,7 +86,7 @@ class UsBackupHost:
                     self._logger.info(f'Creating handler directory "{handler_dest}"')
                     await cmd_exec.mkdir(handler_dest)
                 
-                self._logger.info(f'Delegating "{handler.name}" handler')
+                self._logger.info(f'Performing backup via "{handler.name}" handler')
                 await handler.backup(handler_dest, handler_dest_link)
             except (BackupHandlerError) as e:
                 self._logger.error(f'{handler.name} backup handler error: {e}', exc_info=True)
