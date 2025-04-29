@@ -176,7 +176,7 @@ class UsBackupHost:
         }
         
         for version in versions:
-            date = datetime.datetime.strptime(version, self._version_format)
+            version_date = datetime.datetime.strptime(version, self._version_format)
             
             for category, attr in categories.items():
                 if not retention_policy.get(category):
@@ -186,16 +186,15 @@ class UsBackupHost:
                 if not attr['prev']:
                     categories[category]['versions'].append(version)
                 else:
-                    if attr['filter'] and date.strftime(attr['filter']) >= attr['prev'].strftime(attr['filter']):
+                    if attr['filter'] and version_date.strftime(attr['filter']) == attr['prev'].strftime(attr['filter']):
                         categories[category]['versions'].pop()
-                        categories[category]['versions'].append(version)
-                    elif not attr['filter']:
-                        categories[category]['versions'].append(version)
+                            
+                    categories[category]['versions'].append(version)
                         
                 if len(categories[category]['versions']) > retention_policy[category]:
                     categories[category]['versions'].pop(0)
                 
-                categories[category]['prev'] = date
+                categories[category]['prev'] = version_date
                 
         protected = []
         
