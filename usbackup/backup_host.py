@@ -199,6 +199,7 @@ class UsBackupHost:
         protected = []
         
         for category, attr in categories.items():
+            self._logger.debug(f'{category} protected versions: {attr["versions"]}')
             protected += attr['versions']
             
         protected = list(set(protected))
