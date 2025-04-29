@@ -1,22 +1,28 @@
 import logging
 from usbackup.arequest import arequest_post
+from usbackup.backup_result import UsbackupResult
 from usbackup.notification_handlers.base import NotificationHandler, NotificationHandlerError
 
 class SlackHandler(NotificationHandler):
     handler: str = 'slack'
     lexicon: dict = {
         'token': {'required': True, 'type': str},
-        'channel': {'required': True, 'type': list},
+        'channel': {'required': True, 'type': str},
     }
     
-    def __init__(self, config: dict):
-        self._slack_api_url = 'https://slack.com/api/files.upload'
-
+    def __init__(self, config: dict, *, logger: logging.Logger):
         self._slack_token: str = config.get("token")
         self._slack_channel: str = config.get("channel")
+        
+        self._logger: logging.Logger = logger
+        
+        self._slack_api_url = 'https://slack.com/api/files.upload'
 
-    async def send(self, content: list, *, logger: logging.Logger) -> None:
-        logger.info("* Sending notification via slack")
+    async def notify(self, job_name: str, status: str, results: list[UsbackupResult]) -> None:
+        self._logger.info("* Sending notification via slack")
+        
+        details = [res.message for res in results if res.message]
+        details = "\n".join(details)
 
         headers = {
             'Authorization': f"Bearer {self._slack_token}",
@@ -24,13 +30,12 @@ class SlackHandler(NotificationHandler):
 
         params = {
             'channels': self._slack_channel,
-            # 'content': "\n".join(content),
             'filename': 'backup_report.log',
-            'initial_comment': f'*Backup report for "{self._snapshot_name}" snapshot:*',
+            'initial_comment': f'*Backup status ({job_name}): backup {status}*',
         }
 
         files = {
-            'file': "\n".join(content),
+            'file': details,
         }
 
         resp = await arequest_post(self._slack_api_url, headers=headers, params=params, files=files)

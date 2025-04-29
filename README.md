@@ -2,9 +2,9 @@
 
 ## Description
 
-**UsBackup** is a backup software that allows files and configs to be backed up in pull mode (via ssh). It is designed to run as a background process and to be as simple as possible.
+**UsBackup** is a backup software that allows files, datasets, vms, configs to be backed up in pull mode (via ssh). It is designed to run as a background process and to be as simple as possible.
 
-It features a simple configuration file that allows you to configure different snapshots, snapshot levels, the backup sources and the backup destinations. It also features a simple reporting system that can send email or slack reports after the backup is finished either globally or for each snapshot.
+It features a simple configuration file that allows you to configure different hosts, hosts jobs, the backup sources and the backup destinations. It also features a simple reporting system that can send reports via various handlers after the backup is finished.
 
 Files can be backed up from local storage or from remote storage, also they can be backed up using incremental, full or archive mode. (The first one being the most efficient in terms of space and time)
 
@@ -19,15 +19,14 @@ Files can be backed up from local storage or from remote storage, also they can 
 - Backup from local host
 - Backup from remote host
 - Backup to local host
-- Independent snapshot configuration
-- Independent snapshot level configuration
+- Host configuration
+- Hosts jobs configuration
 - Full backup
 - Incremental backup
 - Archive backup
 - Email reporting
 - Slack reporting
 - Pre / post backup commands
-- Snapshots disk usage
 
 ## Software requirements
 
@@ -99,13 +98,21 @@ options:
 
 Commands:
   {configtest,du,backup}
-    configtest          Test configuration file (based on provided snapshots)
-    du                  Show disk usage of snapshots
-    stats               Show statistics of snapshots
-    backup              Backup snapshots
+    configtest          Test configuration file
+
+    daemon              Run as daemon and perform actions based on configured jobs
+    
+    backup              Backup hosts. This option creates a backup job from the options provided
       options:
-        -h, --help            show this help message and exit
-        --service             Run as service. Wake up every minute to check if there are any backups to be performed
+        --dest DEST           Destination folder. If not specified, the default destination from config will be used
+        --limit LIMIT         Host name(s) to backup. If none specified, all hosts will be backed up except those specified in --exclude
+        --exclude EXCLUDE     Host name(s) to exclude in the backup
+        --retention-policy RETENTION_POLICY
+                              Retention policy. last=<NR>,hourly=<NR>,daily=<daNRys>,weekly=<NR>,monthly=<NR>,yearly=<NR>. Example: --retention-policy last=6,hourly=24,daily=7,weekly=4,monthly=12,yearly=1
+        --notification-policy NOTIFICATION_POLICY
+                              Notification policy. Available options: never, always, on-failure. Default: always
+        --concurrency CONCURRENCY
+                              Concurrency. Number of concurrent hosts to backup. Default: 1
 ```
 
 ## Configuration file
@@ -114,7 +121,7 @@ For a sample configuration file see `config.sample.yml` file. Aditionally, you c
 
 For details on how to configure the file, see the `config.sample.yml` file.
 
-Valid format for remote hosts:
+Valid format for remotes:
 
 ```
 <user>:<password>@<host>:<port>

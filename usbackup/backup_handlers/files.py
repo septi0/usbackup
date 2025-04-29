@@ -18,9 +18,9 @@ class FilesHandler(BackupHandler):
         self._src_host: Remote = src_host
         
         self._src_paths: list[str] = self._gen_backup_src(config.get("limit"))
-        self._exclude: list[str] = config.get("exclude", [])
+        self._exclude: list[str] = config.get("exclude")
         self._bwlimit: str = config.get("bwlimit")
-        self._mode: str = config["mode"]
+        self._mode: str = config.get("mode")
         
         self._logger = logger
 

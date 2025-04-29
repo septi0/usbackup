@@ -7,7 +7,6 @@ import usbackup.cmd_exec as cmd_exec
 from usbackup.aio_files import afwrite
 from usbackup.remote import Remote
 from usbackup.cleanup_queue import CleanupQueue
-from usbackup.file_cache import FileCache
 from usbackup.exceptions import UsbackupRuntimeError
 from usbackup.backup_result import UsbackupResult
 from usbackup.backup_handlers.base import BackupHandler, BackupHandlerError
@@ -15,13 +14,12 @@ from usbackup.backup_handlers.base import BackupHandler, BackupHandlerError
 __all__ = ['UsBackupHost']
 
 class UsBackupHost:
-    def __init__(self, name: str, remote: Remote, handlers: list[BackupHandler], *, cleanup: CleanupQueue, cache: FileCache, logger: logging.Logger) -> None:
+    def __init__(self, name: str, remote: Remote, handlers: list[BackupHandler], *, cleanup: CleanupQueue, logger: logging.Logger) -> None:
         self._name: str = name
         self._remote: Remote = remote
         self._handlers: list[BackupHandler] = handlers
         
         self._cleanup: CleanupQueue = cleanup
-        self._cache: FileCache = cache
         self._logger: logging.Logger = logger
         
         self._log_stream: io.StringIO = io.StringIO()
@@ -42,13 +40,6 @@ class UsBackupHost:
     def id(self) -> str:
         return self._id
     
-    def get_backup_stats(self) -> dict:
-        return {
-            'start': self._cache.get(f'{self._id}_last_backup_start', 0),
-            'finish': self._cache.get(f'{self._id}_last_backup_finish', 0),
-            'versions': self._cache.get(f'{self._id}_versions', 0),
-        }
-    
     async def backup(self, host_dest: str, retention_policy: dict) -> None:
         run_time = datetime.datetime.now()
         
@@ -65,9 +56,6 @@ class UsBackupHost:
             return UsbackupResult(self._name, return_code=1, message=f'Host {self._name} is not reachable')
 
         self._logger.info(f'Backup started at {run_time}')
-
-        self._cache.set(f'{self._id}_last_backup_start', run_time.timestamp())
-        self._cache.set(f'{self._id}_last_backup_finish', 0)
         
         # create backup directory
         if not os.path.isdir(host_dest):
@@ -114,9 +102,6 @@ class UsBackupHost:
         self._cleanup.remove_job(f'remove_lock_{self._id}')
 
         finish_time = datetime.datetime.now()
-
-        self._cache.set(f'{self._id}_versions', versions)
-        self._cache.set(f'{self._id}_last_backup_finish', finish_time.timestamp())
 
         elapsed_time = finish_time - run_time
         elapsed_time_s = elapsed_time.total_seconds()
@@ -195,7 +180,8 @@ class UsBackupHost:
             date = datetime.datetime.strptime(version, '%Y-%m-%d_%H-%M-%S')
             
             for category, attr in categories.items():
-                if not category in retention_policy:
+                if not retention_policy.get(category):
+                    self._logger.debug(f'Category "{category}" not in retention policy. Skipping')
                     continue
                 
                 if not attr['prev']:

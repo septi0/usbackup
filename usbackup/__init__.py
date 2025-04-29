@@ -14,14 +14,14 @@ def main():
     parser.add_argument('--version', action='version', version=f'{__app_name__} {__version__}')
 
     subparsers = parser.add_subparsers(title="Commands", dest="command")
-
-    du_parser = subparsers.add_parser('du', help='Show disk usage for hosts')
-    du_parser.add_argument('--limit', dest='limit', action='append', help='Host name(s) to check disk usage for. If none specified, all hosts will be checked except those specified in --exclude')
-    du_parser.add_argument('--exclude', dest='exclude', action='append', help='Host name(s) excluded in disk usage check')
+    
+    configtest_parser = subparsers.add_parser('configtest', help='Test the configuration file')
     
     stats_parser = subparsers.add_parser('stats', help='Show statistics of hosts')
+    stats_parser.add_argument('--limit', dest='limit', action='append', help='Host name(s) to check statistics for. If none specified, all hosts will be checked except those specified in --exclude')
+    stats_parser.add_argument('--exclude', dest='exclude', action='append', help='Host name(s) excluded in statistics check')
 
-    backup_parser = subparsers.add_parser('backup', help='Backup hosts')
+    backup_parser = subparsers.add_parser('backup', help='Backup hosts. This option creates a backup job from the options provided')
     
     backup_parser.add_argument('--dest', dest='dest',  help='Destination folder. If not specified, the default destination from config will be used')
     backup_parser.add_argument('--limit', dest='limit', action='append', help='Host name(s) to backup. If none specified, all hosts will be backed up except those specified in --exclude')
@@ -44,16 +44,8 @@ def main():
         print(f"Config error: {e}\nCheck documentation for more information on how to configure usbackup")
         sys.exit(2)
     
-    if args.command == 'du':
-        print("Checking disk usage for hosts. This may take a while...\n")
-        config = {
-            'limit': args.limit,
-            'exclude': args.exclude,
-            'format': 'string',
-        }
-        print(usbackup.du(config=config))
-    elif args.command == 'stats':
-        print(usbackup.stats())
+    if args.command == 'configtest':
+        print("Configuration file is valid")
     elif args.command == 'backup':
         config = {
             'dest': args.dest,
@@ -63,6 +55,8 @@ def main():
             'notification-policy': args.notification_policy,
             'concurrency': args.concurrency,
         }
+        
+        config = {k : v for k, v in config.items() if v is not None}
 
         usbackup.backup(daemon=False, config=config)
     elif args.command == 'daemon':

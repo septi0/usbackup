@@ -12,11 +12,12 @@ from usbackup.exceptions import UsbackupRuntimeError
 __all__ = ['UsBackupJob']
 
 class UsBackupJob:
-    def __init__(self, name: str, hosts: list[UsBackupHost], dest: str, config: dict, *, notifier: UsbackupNotifier, logger: logging.Logger):
-        self._name: str = name
+    def __init__(self, hosts: list[UsBackupHost], dest: str, config: dict, *, notifier: UsbackupNotifier, logger: logging.Logger):
         self._hosts: list[UsBackupHost] = hosts
         self._dest: str = dest
         self._config: dict = config
+        
+        self._name: str = config.get('name')
         
         self._notifier: UsbackupNotifier = notifier
         self._logger: logging.Logger = logger
@@ -41,7 +42,7 @@ class UsBackupJob:
             self._logger.info(f"Running pre backup command")
             await cmd_exec.exec_cmd(shlex.split(self._config['pre-backup-cmd']))
         
-        semaphore = asyncio.Semaphore(self._config.get('concurrency', 1))
+        semaphore = asyncio.Semaphore((self._config.get('concurrency')))
         
         for host in self._hosts:
             self._logger.info(f"Running backup for host {host.name}")
@@ -130,7 +131,7 @@ class UsBackupJob:
         return False
     
     async def _send_report(self, results: list[UsbackupResult]) -> None:
-        notification_policy = self._config.get('notification-policy') or 'always'
+        notification_policy = self._config.get('notification-policy')
         errors = any(result.return_code != 0 for result in results)
         status = 'ok' if not errors else 'failed'
         
