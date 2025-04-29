@@ -24,7 +24,7 @@ class UsBackupHost:
         
         self._log_stream: io.StringIO = io.StringIO()
         self._id: str = hashlib.md5(self._name.encode()).hexdigest()
-        self._version_format: str = '%Y-%m-%d_%H:%M:%S'
+        self._version_format: str = '%Y_%m_%d-%H_%M_%S'
         
         self._bind_stream_to_logger()
         

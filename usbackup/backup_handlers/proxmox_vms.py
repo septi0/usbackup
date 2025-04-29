@@ -49,18 +49,16 @@ class ProxmoxVmsHandler(BackupHandler):
         
         # Filter VMs based on limit/exclude lists
         if self._limit:
-            vms = [vm for vm in vms if str(vm) in self._limit]
+            vms = [vm for vm in vms if int(vm) in self._limit]
             
         if self._exclude:
-            vms = [vm for vm in vms if str(vm) not in self._exclude]
+            vms = [vm for vm in vms if int(vm) not in self._exclude]
             
         if not vms:
             self._logger.info(f'No VMs left to backup after limit/exclude filters')
             return
         
         self._logger.info(f'Backing up VMs "{vms}"')
-        
-        return
         
         for vm in vms:
             await self._backup_vm(vm, dest)
