@@ -18,8 +18,8 @@ class ProxmoxVmsHandler(BackupHandler):
     def __init__(self, src_host: Remote, config: dict, *, logger: logging.Logger = None):
         self._src_host: Remote = src_host
         
-        self._limit: list[str] = config.get("limit")
-        self._exclude: list[str] = config.get("exclude")
+        self._limit: list[int] = config.get("limit")
+        self._exclude: list[int] = config.get("exclude")
         self._bwlimit: str = config.get("bwlimit")
         self._mode: str = config.get("mode")
         self._compress: str = config.get("compress")
@@ -59,6 +59,8 @@ class ProxmoxVmsHandler(BackupHandler):
             return
         
         self._logger.info(f'Backing up VMs "{vms}"')
+        
+        return
         
         for vm in vms:
             await self._backup_vm(vm, dest)
