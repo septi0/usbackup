@@ -68,10 +68,12 @@ class ProxmoxVmsHandler(BackupHandler):
             ('mode', self._mode),
             ('compress', self._compress),
             ('notification-policy', 'never'),
-            ('bwlimit', self._bwlimit),
             'stdout',
             'quiet',
         ]
+        
+        if self._bwlimit:
+            cmd_options.append(('bwlimit', self._bwlimit))
         
         cmd_options = cmd_exec.parse_cmd_options(cmd_options)
         file_name = f'vzdump-qemu-{vm}.{self._compression_types[self._compress]}'
