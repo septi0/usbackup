@@ -102,6 +102,8 @@ class UsBackupJob:
         if not self._is_cron_field_due(weekday, now.weekday()):
             return False
         
+        self._logger.debug(f"Job {self._name} is due with schedule {cron_schedule}")
+        
         return True
     
     def _is_cron_field_due(self, field: str, value: int) -> bool:
