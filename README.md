@@ -2,7 +2,7 @@
 
 ## Description
 
-**UsBackup** is a backup software that allows files, databases, openwrt configs to be backed up. It is designed to run as a background process and to be as simple as possible.
+**UsBackup** is a backup software that allows files, databases, configs to be backed up in pull mode (via ssh). It is designed to run as a background process and to be as simple as possible.
 
 It features a simple configuration file that allows you to configure different snapshots, snapshot levels, the backup sources and the backup destinations. It also features a simple reporting system that can send email or slack reports after the backup is finished either globally or for each snapshot.
 
@@ -11,7 +11,6 @@ Files can be backed up from local storage or from remote storage, also they can 
 ## Features
 
 - Backup files
-- Backup databases (mysql)
 - Backup OpenWRT config
 - Backup Truenas config
 - Backup ZFS datasets

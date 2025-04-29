@@ -19,13 +19,17 @@ class ProxmoxVmsHandler(BackupHandler):
         self._compress: str = config.get("backup.proxmox-vms.compress", 'zstd')
         
         self._use_handler: bool = bool(config.get("backup.proxmox-vms", ''))
-        
+
+        self._modes = ['snapshot', 'suspend', 'stop']        
         self._compression_types = {
             'zstd': 'vma.zst',
             'gzip': 'vma.gz',
             'lzo': 'vma.lzo',
             'none': 'vma',
         }
+        
+        if self._mode not in self._modes:
+            raise HandlerError(f'Invalid backup mode "{self._mode}"')
         
         if self._compress not in self._compression_types:
             raise HandlerError(f'Invalid compression type "{self._compress}"')

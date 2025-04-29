@@ -1,8 +1,8 @@
 import asyncio
 
-__all__ = ['JobsQueue']
+__all__ = ['CleanupQueue']
 
-class JobsQueue:
+class CleanupQueue:
     def __init__(self):
         self._jobs = {}
 

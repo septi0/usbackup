@@ -4,77 +4,46 @@ import signal
 import math
 import datetime
 import asyncio
-import usbackup.backup_handlers as backup_handlers
-import usbackup.report_handlers as report_handlers
-from configparser import ConfigParser
-from usbackup.jobs_queue import JobsQueue
+from usbackup.cleanup_queue import CleanupQueue
 from usbackup.file_cache import FileCache
-from usbackup.snapshot import UsBackupSnapshot
-from usbackup.exceptions import UsbackupConfigError, GracefulExit
+from usbackup.remote import Remote
+from usbackup.backup_config_parser import UsBackupConfigParser
+from usbackup.backup_job import UsBackupJob
+from usbackup.backup_host import UsBackupHost
+from usbackup.backup_notifier import UsbackupNotifier
+from usbackup.exceptions import UsbackupRuntimeError, GracefulExit
+from usbackup.backup_handlers import dynamic_loader as backup_handler_loader
+from usbackup.notification_handlers import dynamic_loader as notification_handler_loader
 
 __all__ = ['UsBackupManager']
 
 class UsBackupManager:
-    def __init__(self, params: dict) -> None:
+    def __init__(self, *, config_file: str = None, log_file: str = None, log_level: str = None) -> None:
         self._pid_filepath: str = self._gen_pid_filepath()
 
-        config = self._parse_config(params.get('config_files'))
+        self._config = UsBackupConfigParser(config_file)
+        self._logger: logging.Logger = self._logger_factory(log_file, log_level)
+        
+        self._cleanup: CleanupQueue = CleanupQueue()
+        self._cache: FileCache = FileCache()
+        self._notifier: UsbackupNotifier = self._notifier_factory(self._config['notification'])
 
-        self._cleanup: JobsQueue = JobsQueue()
-        self._cache: FileCache = FileCache(self._gen_cache_filepath())
+    def backup(self, daemon: bool = False, config: dict = {}) -> None:
+        return self._run_main(self._run_backup, daemon=daemon, config=config)
 
-        self._logger: logging.Logger = self._gen_logger(params.get('log_file', ''), params.get('log_level', 'INFO'))
-        self._snapshots: list[UsBackupSnapshot] = self._gen_snapshots(params.get('snapshot_names'), config)
-
-    def backup(self, *, service: bool = False) -> None:
-        self._run_main(self._run_backup, service=service)
-
-    def du(self, *, format: str = 'dict') -> str | dict:
-        return self._run_main(self._run_du, format=format)
+    def du(self, *, config: dict) -> str | dict:
+        return self._run_main(self._run_du, config=config)
     
     def stats(self) -> str:
         return self._get_stats()
-
-    def _parse_config(self, config_files: list[str]) -> dict:
-        if not config_files:
-            config_files = [
-                '/etc/usbackup/config.conf',
-                '/etc/opt/usbackup/config.conf',
-                os.path.expanduser('~/.config/usbackup/config.conf'),
-            ]
-        
-        config_inst = ConfigParser()
-        config_inst.read(config_files)
-
-        # check if any config was found
-        if not config_inst.sections():
-            raise UsbackupConfigError("No config found")
-
-        config = {}
-
-        for section in config_inst.sections():
-            section_data = {}
-
-            for key, value in config_inst.items(section):
-                section_data[key] = value
-
-            config[section] = section_data
-
-        return config
     
     def _gen_pid_filepath(self) -> str:
         if os.getuid() == 0:
             return '/var/run/usbackup.pid'
         else:
             return os.path.expanduser('~/.usbackup.pid')
-        
-    def _gen_cache_filepath(self) -> str:
-        if os.getuid() == 0:
-            return '/var/cache/usbackup/filecache.json'
-        else:
-            return os.path.expanduser('~/.cache/usbackup/filecache.json')
     
-    def _gen_logger(self, log_file: str, log_level: str) -> logging.Logger:
+    def _logger_factory(self, log_file: str, log_level: str) -> logging.Logger:
         levels = {
             "DEBUG": logging.DEBUG,
             "INFO": logging.INFO,
@@ -102,38 +71,21 @@ class UsBackupManager:
         logger.addHandler(handler)
 
         return logger
+    
+    def _notifier_factory(self, config: list) -> UsbackupNotifier:
+        if not config:
+            return UsbackupNotifier([], logger=self._logger)
 
-    def _gen_snapshots(self, snapshot_names: list[str], config: dict) -> list[UsBackupSnapshot]:
-        snapshots_names = []
-        config_keys = list(config.keys())
+        notifier_logger = self._logger.getChild('notifier')
+        handlers = []
 
-        if snapshot_names:
-            names = list(set(snapshot_names))
-            for name in names:
-                if not name in config_keys:
-                    raise UsbackupConfigError(f"Snapshot {name} not found in config file")
-            
-                snapshots_names.append(name)
-        else:
-            snapshots_names = [name for name in config_keys if name != 'GLOBALS']
+        for notifier_config in config:
+            handler_logger = notifier_logger.getChild(notifier_config['handler'])
+            handler_class = notification_handler_loader(notifier_config['handler'])
 
-        if not snapshots_names:
-            raise UsbackupConfigError("No snapshots found in config file")
-        
-        global_config = {}
+            handlers.append(handler_class(notifier_config, logger=handler_logger))
 
-        if 'GLOBALS' in config_keys:
-            global_config = config.get('GLOBALS')
-
-        snapshots = []
-        
-        for snapshot_name in snapshots_names:
-            snapshot_config = config.get(snapshot_name)
-            snapshot_config = {**global_config, **snapshot_config}
-
-            snapshots.append(UsBackupSnapshot(snapshot_name, snapshot_config, cleanup=self._cleanup, cache=self._cache, logger=self._logger))
-
-        return snapshots
+        return UsbackupNotifier(handlers, logger=notifier_logger)
     
     def _sigterm_handler(self) -> None:
         raise GracefulExit
@@ -190,16 +142,28 @@ class UsBackupManager:
                     'task': task,
                 })
 
-    async def _run_backup(self, *, service: bool = False) -> None:
+    async def _run_backup(self, daemon: bool = False, config: dict = {}) -> None:
         self._cleanup.add_job('persist_cache', self._cache.persist)
 
-        if not service:
-            # run once
-            await self._do_backup()
+        if not daemon:
+            if config['retention-policy']:
+                # convert retention_policy to dict
+                config['retention-policy'] = config['retention-policy'].split(',')
+                config['retention-policy'] = {k.strip(): int(v) for k, v in (x.split('=') for x in config['retention-policy'])}
+                
+            backup_job = self._backup_job_factory('manual', config)
+            
+            await backup_job.run()
             return
         
-        # run as service
+        jobs_configs = self._config['jobs']
         
+        backup_jobs: list[UsBackupJob] = []
+        
+        for job_config in jobs_configs:
+            backup_jobs.append(self._backup_job_factory(job_config['name'], job_config))
+        
+        # run as service
         pid = str(os.getpid())
 
         if os.path.isfile(self._pid_filepath):
@@ -218,7 +182,7 @@ class UsBackupManager:
 
         # run every minute
         while True:
-            asyncio.create_task(self._do_backup(exclude=['on_demand']))
+            asyncio.create_task(self._run_due_jobs(backup_jobs))
 
             # calculate the next scheduled run_time for the service
             service_run_time += datetime.timedelta(minutes=1)
@@ -240,123 +204,181 @@ class UsBackupManager:
 
             await asyncio.sleep(time_left)
 
-    async def _run_du(self, *, format: str = 'string') -> None:
-        self._logger.debug(f'Checking disk usage of snapshots')
+    # async def _run_du(self, *, format: str = 'string') -> None:
+    #     self._logger.debug(f'Checking disk usage of snapshots')
 
-        output = {}
+    #     output = {}
 
-        for snapshot in self._snapshots:
-            try:
-                snapshot_usage = await snapshot.du()
+    #     for snapshot in self._snapshots:
+    #         try:
+    #             snapshot_usage = await snapshot.du()
 
-                if snapshot_usage.get('levels'):
-                    output[snapshot.name] = snapshot_usage
-            except Exception as e:
-                output[snapshot.name] = {'error': str(e)}
+    #             if snapshot_usage.get('levels'):
+    #                 output[snapshot.name] = snapshot_usage
+    #         except Exception as e:
+    #             output[snapshot.name] = {'error': str(e)}
 
-        if format == 'string':
-            return self._format_du(output)
-        else:
-            return output
+    #     if format == 'string':
+    #         return self._format_du(output)
+    #     else:
+    #         return output
         
-    def _get_stats(self) -> str:
-        output = ''
+    # def _get_stats(self) -> str:
+    #     output = ''
         
-        for snapshot in self._snapshots:
-            output += f"[{snapshot.name}]:\n"
-            output += '  Levels:\n'
+    #     for snapshot in self._snapshots:
+    #         output += f"[{snapshot.name}]:\n"
+    #         output += '  Levels:\n'
             
-            for level in snapshot.levels:
-                backup_stats = level.get_backup_stats()
+    #         for level in snapshot.levels:
+    #             backup_stats = level.get_backup_stats()
                 
-                if not backup_stats.get('start') or not backup_stats.get('finish'):
-                    output += f"    {level.name}:\n"
-                    output += f"    - Last backup: Never\n\n"
-                    continue
+    #             if not backup_stats.get('start') or not backup_stats.get('finish'):
+    #                 output += f"    {level.name}:\n"
+    #                 output += f"    - Last backup: Never\n\n"
+    #                 continue
                 
-                start = datetime.datetime.fromtimestamp(backup_stats['start'])
-                finish = datetime.datetime.fromtimestamp(backup_stats['finish'])
+    #             start = datetime.datetime.fromtimestamp(backup_stats['start'])
+    #             finish = datetime.datetime.fromtimestamp(backup_stats['finish'])
                 
-                elapsed = finish - start
+    #             elapsed = finish - start
                 
-                output += f"    {level.name}:\n"
-                output += f"    - Last backup: {str(finish)}\n"
-                output += f"    - Backup duration: {str(elapsed)}\n"
-                output += f"    - Versions: {backup_stats.get('versions', 0)}\n"
-                output += '\n'
+    #             output += f"    {level.name}:\n"
+    #             output += f"    - Last backup: {str(finish)}\n"
+    #             output += f"    - Backup duration: {str(elapsed)}\n"
+    #             output += f"    - Versions: {backup_stats.get('versions', 0)}\n"
+    #             output += '\n'
 
-        return output
-
-    async def _do_backup(self, *, exclude: list = []) -> None:
+    #     return output
+    
+    def _backup_job_factory(self, job_name: str, job_config: dict) -> UsBackupJob:
+        hosts_config = self._config['hosts']
+        
+        if job_config.get('limit'):
+            hosts_config = [host for host in hosts_config if host.get('name') in job_config['limit']]
+        
+        if job_config.get('exclude'):
+            hosts_config = [host for host in hosts_config if host.get('name') not in job_config['exclude']]
+            
+        if not hosts_config:
+            raise UsbackupRuntimeError("No hosts left to backup after limit/exclude filters")
+            
+        hosts: list[UsBackupHost] = []
+        
+        for host in hosts_config:                
+            hosts.append(self._backup_host_factory(host))
+            
+        dest = job_config['dest']
+            
+        if not dest:
+            raise UsbackupRuntimeError("No destination found for job")
+        
+        job_config = {
+            'schedule': job_config.get('schedule'),
+            'retention-policy': job_config.get('retention-policy'),
+            'notification-policy': job_config.get('notification-policy'),
+            'concurrency': job_config.get('concurrency'),
+            'pre-backup-cmd': job_config.get('pre-backup-cmd'),
+            'post-backup-cmd': job_config.get('post-backup-cmd'),
+        }
+            
+        logger = self._logger.getChild(job_name)
+            
+        return UsBackupJob(job_name, hosts, dest, job_config, notifier=self._notifier, logger=logger)
+    
+    def _backup_host_factory(self, host_config: dict) -> UsBackupHost:
+        host_name = host_config['name']
+        try:
+            remote = Remote(host_config['host'], default_user='root', default_port=22)
+        except ValueError:
+            raise UsbackupRuntimeError(f'Invalid host {host_config["host"]}')
+        
+        host_logger = self._logger.getChild(host_name)
+        handlers = []
+        
+        for backup_config in host_config['backup']:
+            handler_logger = host_logger.getChild(backup_config['handler'])
+            handler_class = backup_handler_loader(backup_config['handler'])
+            
+            handlers.append(handler_class(remote, backup_config, logger=handler_logger))
+        
+        return UsBackupHost(host_name, remote, handlers, cleanup=self._cleanup, cache=self._cache, logger=host_logger)
+    
+    async def _run_due_jobs(self, backup_jobs: list[UsBackupJob]) -> None:
         tasks = []
-
-        for (index, snapshot) in enumerate(self._snapshots):
-            if snapshot.name in exclude:
-                continue
-
-            tasks.append(asyncio.create_task(snapshot.backup_if_needed(exclude=exclude), name=index))
             
-        await asyncio.gather(*tasks, return_exceptions=True)
-
-        for task in tasks:
-            snapshot = self._snapshots[int(task.get_name())]
-
-            if isinstance(task.exception(), Exception):
-                snapshot.logger.exception(task.exception(), exc_info=True)
-
-    def _format_du(self, snapshot_usage: dict) -> str:
-        if not snapshot_usage:
-            return "No snapshots found"
+        for job in backup_jobs:
+            if job.is_job_due():
+                tasks.append(asyncio.create_task(job.run(), name=job.name))
         
-        output = ''
+        if not tasks:
+            self._logger.debug('No jobs due')
+            return
+        
+        self._logger.info(f"Running {len(tasks)} jobs")
+        
+        if len(tasks) > 1:
+            self._logger.warning('More than one job run concurrently. Performance may be degraded')
+                
+        await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for task in tasks:
+            if isinstance(task.exception(), Exception):
+                self._logger.exception(task.exception(), exc_info=True)
 
-        for snapshot_name, snapshot_data in snapshot_usage.items():
-            snapshot_total = self._prettify_size(snapshot_data.get('total', 0))
-            output += f"{snapshot_name} ({snapshot_total}):\n"
-            snapshot_prefix = ''
+    # def _format_du(self, snapshot_usage: dict) -> str:
+    #     if not snapshot_usage:
+    #         return "No snapshots found"
+        
+    #     output = ''
 
-            if 'error' in snapshot_data:
-                output += f"{snapshot_prefix}└── Error:{snapshot_data['error']}\n\n"
-                continue
+    #     for snapshot_name, snapshot_data in snapshot_usage.items():
+    #         snapshot_total = self._prettify_size(snapshot_data.get('total', 0))
+    #         output += f"{snapshot_name} ({snapshot_total}):\n"
+    #         snapshot_prefix = ''
 
-            if not 'levels' in snapshot_data:
-                continue
+    #         if 'error' in snapshot_data:
+    #             output += f"{snapshot_prefix}└── Error:{snapshot_data['error']}\n\n"
+    #             continue
 
-            levels = len(snapshot_data['levels'])
+    #         if not 'levels' in snapshot_data:
+    #             continue
 
-            for level, level_data in snapshot_data['levels'].items():
-                levels -= 1
+    #         levels = len(snapshot_data['levels'])
 
-                if levels:
-                    output += f"{snapshot_prefix}├──{level}"
-                    level_prefix = '│  '
-                else:
-                    output += f"{snapshot_prefix}└──{level}"
-                    level_prefix = '   '
+    #         for level, level_data in snapshot_data['levels'].items():
+    #             levels -= 1
 
-                level_total = self._prettify_size(level_data.get('total', 0))
-                output += f" ({level_total}):\n"
+    #             if levels:
+    #                 output += f"{snapshot_prefix}├──{level}"
+    #                 level_prefix = '│  '
+    #             else:
+    #                 output += f"{snapshot_prefix}└──{level}"
+    #                 level_prefix = '   '
 
-                versions = len(level_data['versions'])
+    #             level_total = self._prettify_size(level_data.get('total', 0))
+    #             output += f" ({level_total}):\n"
 
-                for (version, size) in level_data['versions']:
-                    versions -= 1
+    #             versions = len(level_data['versions'])
 
-                    if versions:
-                        version_prefix = '├── '
-                        extra_nl = False
-                    else:
-                        version_prefix = '└── '
-                        extra_nl = True
+    #             for (version, size) in level_data['versions']:
+    #                 versions -= 1
 
-                    size = self._prettify_size(size)
+    #                 if versions:
+    #                     version_prefix = '├── '
+    #                     extra_nl = False
+    #                 else:
+    #                     version_prefix = '└── '
+    #                     extra_nl = True
 
-                    output += f"{snapshot_prefix}{level_prefix}{version_prefix}{version}: {size}\n"
+    #                 size = self._prettify_size(size)
 
-                    if extra_nl:
-                        output += f'{snapshot_prefix}{level_prefix}\n'
+    #                 output += f"{snapshot_prefix}{level_prefix}{version_prefix}{version}: {size}\n"
 
-        return output
+    #                 if extra_nl:
+    #                     output += f'{snapshot_prefix}{level_prefix}\n'
+
+    #     return output
     
     # prettify size same way as du -h
     def _prettify_size(self, size: int) -> str:

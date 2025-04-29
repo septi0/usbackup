@@ -1,26 +1,22 @@
 import logging
 from usbackup.arequest import arequest_post
-from usbackup.report_handlers.base import ReportHandler
-from usbackup.exceptions import HandlerError
+from usbackup.notification_handlers.base import NotificationHandler, NotificationHandlerError
 
-class SlackHandler(ReportHandler):
+class SlackHandler(NotificationHandler):
     handler: str = 'slack'
+    lexicon: dict = {
+        'token': {'required': True, 'type': str},
+        'channel': {'required': True, 'type': list},
+    }
     
-    def __init__(self, snapshot_name: str, config: dict):
-        super().__init__(snapshot_name, config)
-        
+    def __init__(self, config: dict):
         self._slack_api_url = 'https://slack.com/api/files.upload'
 
-        self._slack_channel: str = config.get("report.slack", "")
-        self._slack_token: str = config.get("report.slack.token", "")
-        
-        self._use_handler: bool = bool(self._slack_channel)
+        self._slack_token: str = config.get("token")
+        self._slack_channel: str = config.get("channel")
 
-    async def report(self, content: list, *, logger: logging.Logger) -> None:
-        if not self._use_handler:
-            raise HandlerError(f'Handler "{self._name}" not configured')
-
-        logger.info("* Sending report via slack")
+    async def send(self, content: list, *, logger: logging.Logger) -> None:
+        logger.info("* Sending notification via slack")
 
         headers = {
             'Authorization': f"Bearer {self._slack_token}",

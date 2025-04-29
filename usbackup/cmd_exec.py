@@ -2,9 +2,16 @@ import logging
 import asyncio
 import shlex
 from usbackup.remote import Remote
-from usbackup.exceptions import CmdExecError, ProcessError
 
-__all__ = ['exec_cmd', 'mkdir', 'copy', 'move', 'remove', 'mount', 'mount_all', 'umount', 'umount_all', 'mounted', 'rsync', 'scp', 'tar', 'du']
+__all__ = ['CmdExecError', 'ProcessError', 'exec_cmd', 'mkdir', 'copy', 'move', 'remove', 'mount', 'mount_all', 'umount', 'umount_all', 'mounted', 'rsync', 'scp', 'tar', 'du']
+
+class CmdExecError(Exception):
+    pass
+
+class ProcessError(Exception):
+    def __init__(self, message, code):
+        super().__init__(message)
+        self.code = code
 
 async def exec_cmd(cmd: list, *, host: Remote = None, input: str = None, env=None, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE) -> str:
     if host and not host.local:
@@ -158,6 +165,13 @@ async def du(path: str, *, host: Remote = None, match: str = None):
         return await exec_cmd(["find", path, "-maxdepth", '1', "-name", match, '-exec', 'du', '-sk', '{}', '+'], host=host)
     else:
         return await exec_cmd(["du", "-sk", path], host=host)
+    
+async def is_host_reachable(host: Remote) -> bool:
+    try:
+        await exec_cmd(['echo', '1'], host=host)
+        return True
+    except ProcessError:
+        return False
 
 def parse_cmd_options(options: list, *, arg_separator: str = ''):
     cmd_options = []

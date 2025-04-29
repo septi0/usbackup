@@ -8,7 +8,7 @@ def dynamic_loader(handler: str):
     if handler in _class_cache:
         return _class_cache[handler]
     
-    module = importlib.import_module(f'usbackup.backup_handlers.{handler}')
+    module = importlib.import_module(f'usbackup.notification_handlers.{handler}')
     handler_class = getattr(module, f'{handler.replace("_", " ").title().replace(" ", "")}Handler')
     
     _class_cache[handler] = handler_class

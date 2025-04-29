@@ -2,19 +2,25 @@ import json
 import os
 
 class FileCache:
-    def __init__(self, path: str):
-        self._path = path
-        self._cache = {}
+    def __init__(self, path: str = None):
+        self._path = self._gen_path(path)
+        self._cache = self._load()
+        
+    def _gen_path(self, path: str) -> str:
+        if path:
+            return path
+        
+        if os.getuid() == 0:
+            return '/var/cache/usbackup/filecache.json'
+        else:
+            return os.path.expanduser('~/.cache/usbackup/filecache.json')
 
-        self._load()
-
-    def _load(self) -> None:
+    def _load(self, path: str = None) -> None:
         if not os.path.exists(self._path):
-            self._cache = {}
-            return
+            return {}
 
         with open(self._path, 'r') as f:
-            self._cache = json.load(f)
+            return json.load(f)
 
     def persist(self) -> None:
         # create parent dir if it doesn't exist

@@ -1,74 +1,68 @@
 import os
-import shlex
 import logging
 import datetime
 import usbackup.cmd_exec as cmd_exec
-from usbackup.backup_handlers.base import BackupHandler
+from usbackup.backup_handlers.base import BackupHandler, BackupHandlerError
 from usbackup.remote import Remote
-from usbackup.exceptions import UsbackupConfigError, HandlerError
+from usbackup.exceptions import UsbackupRuntimeError
 
 class FilesHandler(BackupHandler):
     handler: str = 'files'
+    lexicon: dict = {
+        'mode': {'type': str, 'default': 'incremental', 'allowed': ['incremental', 'archive', 'full']},
+        'limit': {'type': list},
+        'exclude': {'type': list},
+        'bwlimit': {'type': int},
+    }
     
-    def __init__(self, src_host: Remote, snapshot_name: str, config: dict):
-        super().__init__(src_host, snapshot_name, config)
+    def __init__(self, src_host: Remote, config: dict, *, logger: logging.Logger) -> None:
+        self._src_host: Remote = src_host
         
-        self._src: list[str] = self._gen_backup_src(config.get("backup.files", ''))
-        self._exclude: list[str] = shlex.split(config.get("backup.files.exclude", ''))
-        self._bwlimit: str = config.get("backup.files.bwlimit")
-        self._options: str = shlex.split(config.get("backup.files.options", ''))
-        self._mode: str = self._gen_backup_mode(config)
+        self._exclude: list[str] = config.get("exclude", [])
+        self._bwlimit: str = config.get("bwlimit")
+        self._mode: str = config.get("backup_files.mode") or 'incremental'
         
-        self._use_handler = bool(self._src)
+        self._src_paths: list[str] = self._gen_backup_src(config.get("limit"))
+        
+        self._logger = logger
 
-    async def backup(self, dest: str, dest_link: str = None, *, logger: logging.Logger = None) -> list:
-        if not self._use_handler:
-            raise HandlerError(f'"files" handler not configured')
-        
-        logger = logger.getChild('files')
-
+    async def backup(self, dest: str, dest_link: str = None) -> list:
         if self._mode == 'incremental':
-            logger.info('Using incremental backup mode')
+            self._logger.info('Using incremental backup mode')
 
-            await self._backup_rsync(dest, dest_link, logger=logger)
+            await self._backup_rsync(dest, dest_link)
         elif self._mode == 'full':
-            logger.info(f'Using full backup mode')
+            self._logger.info(f'Using full backup mode')
 
-            await self._backup_rsync(dest, None, logger=logger)
+            await self._backup_rsync(dest, None)
         elif self._mode == 'archive':
-            logger.info(f'Using archive backup mode')
+            self._logger.info(f'Using archive backup mode')
             
-            await self._backup_tar(dest, logger=logger)
+            await self._backup_tar(dest)
         else:
-            raise HandlerError('Invalid backup mode')
+            raise BackupHandlerError('Invalid backup mode')
     
-    def _gen_backup_src(self, backup_src: str) -> list[str]:
-        backup_src = shlex.split(backup_src)
-        result = []
+    def _gen_backup_src(self, limit: list) -> list[str]:
+        src_paths = []
 
-        for src in backup_src:
-            # make sure all sources are absolute paths
-            if not os.path.isabs(src):
-                raise UsbackupConfigError(f'Invalid backup_files source: "{src}"')
+        if limit:
+            for src in limit:
+                # make sure all sources are absolute paths
+                if not os.path.isabs(src):
+                    raise UsbackupRuntimeError(f'Invalid limit list: "{src}"')
 
-            # make sure paths end with a slash
-            if not src.endswith('/'):
-                src += '/'
+                # make sure paths end with a slash
+                if not src.endswith('/'):
+                    src += '/'
 
-            result.append(src)
+                src_paths.append(src)
+        else:
+            src_paths = ['/']
 
-        return result
+        return src_paths
     
-    def _gen_backup_mode(self, config: dict) -> str:
-        backup_mode = config.get("backup_files.mode", 'incremental')
-
-        if backup_mode not in ['incremental', 'archive', 'full']:
-            raise UsbackupConfigError(f'Invalid backup_files.mode: "{backup_mode}"')
-        
-        return backup_mode
-    
-    async def _backup_rsync(self, dest: str, dest_link: str, *, logger: logging.Logger) -> None:
-        for dir_src in self._src:
+    async def _backup_rsync(self, dest: str, dest_link: str) -> None:
+        for dir_src in self._src_paths:
             options = [
                 'archive',
                 'hard-links',
@@ -80,17 +74,10 @@ class FilesHandler(BackupHandler):
                 'relative',
                 ('out-format', "%t %i %f"),
             ]
-            
-            if self._options:
-                for option in self._options:
-                    if 'no-relative' in option:
-                        options.remove('relative')
 
             if self._exclude:
                 for exclude in self._exclude:
-                    # append exclude path if it starts with the source path
-                    if exclude.startswith(dir_src):
-                        options.append(('exclude', exclude))
+                    options.append(('exclude', exclude))
 
             if self._bwlimit:
                 options.append(('bwlimit', str(self._bwlimit)))
@@ -98,34 +85,34 @@ class FilesHandler(BackupHandler):
             if dest_link:
                 options.append(('link-dest', dest_link))
 
-            logger.info(f'Copying "{dir_src}" from "{self._src_host.host}" to "{dest}"')
+            self._logger.info(f'Copying "{dir_src}" from "{self._src_host.host}" to "{dest}"')
             start_time = datetime.datetime.now()
             
             stats = await cmd_exec.rsync(dir_src, dest, host=self._src_host, options=options)
             
-            logger.debug(stats)
+            self._logger.debug(stats)
             
             end_time = datetime.datetime.now()
             elapsed_time = end_time - start_time
             elapsed_time_s = elapsed_time.total_seconds()
             
-            logger.info(f'Finished copying "{dir_src}" from "{self._src_host.host}" in {elapsed_time_s:.2f} seconds')
+            self._logger.info(f'Finished copying "{dir_src}" from "{self._src_host.host}" in {elapsed_time_s:.2f} seconds')
     
-    async def _backup_tar(self, dest: str, *, logger: logging.Logger) -> None:
-        destination_archive = os.path.join(dest, f'{self._snapshot_name}.tar.gz')
+    async def _backup_tar(self, dest: str) -> None:
+        destination_archive = os.path.join(dest, f'{self._src_host.host}.tar.gz')
         sources = []
 
-        for src in self._src:
+        for src in self._src_paths:
             if not self._src_host.local:
-                raise HandlerError('Archive mode does not support remote backup')
+                raise BackupHandlerError('Archive mode does not support remote backup')
 
             sources.append(src)
 
         if not sources:
-            raise HandlerError('No sources to archive')
+            raise BackupHandlerError('No sources to archive')
         
-        logger.info(f'Archiving "{sources}" to "{destination_archive}"')
+        self._logger.info(f'Archiving "{sources}" to "{destination_archive}"')
 
         stats = await cmd_exec.tar(destination_archive, sources)
 
-        logger.debug(stats)
+        self._logger.debug(stats)
