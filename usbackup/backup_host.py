@@ -79,6 +79,7 @@ class UsBackupHost:
             handler_dest_link = None
             
             if dest_link:
+                self._logger.info(f'Using "{dest_link}" as dest link for "{handler.name}" handler')
                 handler_dest_link = os.path.join(dest_link, handler.name)
                 
             try:
