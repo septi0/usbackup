@@ -45,7 +45,6 @@ class UsBackupJob:
         semaphore = asyncio.Semaphore((self._config.get('concurrency')))
         
         for host in self._hosts:
-            self._logger.info(f"Running backup for host {host.name}")
             tasks.append(asyncio.create_task(self._semaphore_worker(host, semaphore=semaphore), name=host.name))
                 
         # wait for all tasks to finish
@@ -69,6 +68,8 @@ class UsBackupJob:
     
     async def _semaphore_worker(self, host: UsBackupHost, *, semaphore: asyncio.Semaphore) -> UsbackupResult:
         async with semaphore:
+            self._logger.info(f"Running backup for host {host.name}")
+            
             dest = os.path.join(self._dest, host.name)
             return await host.backup(dest, self._config.get('retention-policy'))
     

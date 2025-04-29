@@ -66,7 +66,7 @@ class UsBackupHost:
 
         # create backup directory
         if not os.path.isdir(dest):
-            self._logger.info(f'Creating host version directory {dest}')
+            self._logger.info(f'Creating version directory {dest}')
             await cmd_exec.mkdir(dest)
 
         await self._create_lock_file(host_dest)
@@ -83,10 +83,10 @@ class UsBackupHost:
                 
             try:
                 if not os.path.isdir(handler_dest):
-                    self._logger.info(f'Creating host version handler "{handler_dest}"')
+                    self._logger.info(f'Creating handler directory "{handler_dest}"')
                     await cmd_exec.mkdir(handler_dest)
                 
-                self._logger.info(f'Starting {handler.name} backup')
+                self._logger.info(f'Delegating "{handler.name}" handler')
                 await handler.backup(handler_dest, handler_dest_link)
             except (BackupHandlerError) as e:
                 self._logger.error(f'{handler.name} backup handler error: {e}', exc_info=True)
@@ -95,7 +95,7 @@ class UsBackupHost:
                 self._logger.exception(f'{handler.name} backup handler exception: {e}', exc_info=True)
                 error = e
                 
-        versions = await self._apply_retention_policy(host_dest, retention_policy)
+        await self._apply_retention_policy(host_dest, retention_policy)
 
         await self._remove_lock_file(host_dest)
         self._cleanup.remove_job(f'remove_lock_{self._id}')
@@ -106,7 +106,6 @@ class UsBackupHost:
         elapsed_time_s = elapsed_time.total_seconds()
 
         self._logger.info(f'Backup finished at {finish_time}. Elapsed time: {elapsed_time_s:.2f} seconds')
-        self._logger.info(f'Backup versions: {versions}')
         
         return UsbackupResult(self._name, message=self._log_stream.getvalue(), error=error, elapsed_time=elapsed_time, dest=host_dest)
     
