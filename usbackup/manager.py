@@ -258,7 +258,7 @@ class UsBackupManager:
             handler_logger = host_logger.getChild(backup_config.get('handler'))
             handler_class = backup_handler_loader(backup_config.get('handler'))
             
-            handlers.append(handler_class(remote, backup_config, logger=handler_logger))
+            handlers.append(handler_class(remote, backup_config, cleanup=self._cleanup, logger=handler_logger))
         
         return UsBackupHost(host_name, remote, handlers, cleanup=self._cleanup, logger=host_logger)
     

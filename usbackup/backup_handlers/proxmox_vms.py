@@ -1,9 +1,6 @@
 import os
-import shlex
-import logging
 import usbackup.cmd_exec as cmd_exec
 from usbackup.backup_handlers.base import BackupHandler, BackupHandlerError
-from usbackup.remote import Remote
 
 class ProxmoxVmsHandler(BackupHandler):
     handler: str = 'proxmox-vms'
@@ -15,16 +12,14 @@ class ProxmoxVmsHandler(BackupHandler):
         'compress': {'type': str, 'default': 'zstd', 'allowed': ['zstd', 'gzip', 'lzo', 'none']},
     }
     
-    def __init__(self, src_host: Remote, config: dict, *, logger: logging.Logger = None):
-        self._src_host: Remote = src_host
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         
-        self._limit: list[int] = config.get("limit")
-        self._exclude: list[int] = config.get("exclude")
-        self._bwlimit: str = config.get("bwlimit")
-        self._mode: str = config.get("mode")
-        self._compress: str = config.get("compress")
-        
-        self._logger: logging.Logger = logger
+        self._limit: list[int] = self._config.get("limit")
+        self._exclude: list[int] = self._config.get("exclude")
+        self._bwlimit: str = self._config.get("bwlimit")
+        self._mode: str = self._config.get("mode")
+        self._compress: str = self._config.get("compress")
 
         self._compression_types = {
             'zstd': 'vma.zst',
@@ -81,7 +76,4 @@ class ProxmoxVmsHandler(BackupHandler):
         with open(os.path.join(dest, file_name), 'wb') as f:
             self._logger.info(f'Streaming vzdump for VM {vm} from "{self._src_host.host}" to "{dest}"')
             
-            try:
-                await cmd_exec.exec_cmd(['vzdump', str(vm), *cmd_options], stdout=f, host=self._src_host)
-            except Exception as e:
-                raise BackupHandlerError(f'Failed to create backup for VM {vm}: {e}', 1002)
+            await cmd_exec.exec_cmd(['vzdump', str(vm), *cmd_options], stdout=f, host=self._src_host)

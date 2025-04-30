@@ -4,7 +4,7 @@ __all__ = ['CleanupQueue']
 
 class CleanupQueue:
     def __init__(self):
-        self._jobs = {}
+        self._jobs: dict = {}
 
     def add_job(self, id: str, handler: callable, *args, **kwargs) -> None:
         if id in self._jobs:
@@ -17,21 +17,23 @@ class CleanupQueue:
             return
         
         del self._jobs[id]
-
-    def _pop_job(self) -> tuple:
-        if not self._jobs:
-            return None
+    
+    async def run_job(self, id: str) -> None:
+        if id not in self._jobs:
+            raise ValueError(f"Job with id {id} does not exist")
         
-        return self._jobs.popitem()[1]
+        (handler, args, kwargs) = self._jobs[id]
+        
+        if asyncio.iscoroutinefunction(handler):
+            await handler(*args, **kwargs)
+        else:
+            handler(*args, **kwargs)
+            
+        self.remove_job(id)
 
     async def run_jobs(self) -> None:
         if not self._jobs:
             return
         
-        while self._jobs:
-            (handler, args, kwargs) = self._pop_job()
-
-            if asyncio.iscoroutinefunction(handler):
-                await handler(*args, **kwargs)
-            else:
-                handler(*args, **kwargs)
+        for id in list(self._jobs.keys()):
+            await self.run_job(id)

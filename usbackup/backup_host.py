@@ -2,7 +2,7 @@ import os
 import logging
 import datetime
 import io
-import hashlib
+import uuid
 import usbackup.cmd_exec as cmd_exec
 from usbackup.aio_files import afwrite
 from usbackup.remote import Remote
@@ -23,7 +23,7 @@ class UsBackupHost:
         self._logger: logging.Logger = logger
         
         self._log_stream: io.StringIO = io.StringIO()
-        self._id: str = hashlib.md5(self._name.encode()).hexdigest()
+        self._id: str = str(uuid.uuid4())
         self._version_format: str = '%Y_%m_%d-%H_%M_%S'
         
         self._bind_stream_to_logger()
@@ -35,10 +35,6 @@ class UsBackupHost:
     @property
     def remote(self) -> Remote:
         return self._remote
-    
-    @property
-    def id(self) -> str:
-        return self._id
     
     async def backup(self, host_dest: str, retention_policy: dict) -> None:
         run_time = datetime.datetime.now()
@@ -98,8 +94,7 @@ class UsBackupHost:
                 
         await self._apply_retention_policy(host_dest, retention_policy)
 
-        await self._remove_lock_file(host_dest)
-        self._cleanup.remove_job(f'remove_lock_{self._id}')
+        await self._cleanup.run_job(f'remove_lock_{self._id}')
 
         finish_time = datetime.datetime.now()
 
@@ -175,12 +170,17 @@ class UsBackupHost:
             'yearly': {'prev': None, 'filter': '%Y', 'versions': []},
         }
         
-        for version in versions:
-            version_date = datetime.datetime.strptime(version, self._version_format)
-            
-            for category, attr in categories.items():
-                if not retention_policy.get(category):
-                    continue
+        date_now = datetime.datetime.now()
+        
+        for category, attr in categories.items():
+            if not retention_policy.get(category):
+                continue
+    
+            for version in versions:
+                version_date = datetime.datetime.strptime(version, self._version_format)
+                
+                if attr['filter'] and version_date.strftime(attr['filter']) == date_now.strftime(attr['filter']):
+                    break
                 
                 if not attr['prev']:
                     categories[category]['versions'].append(version)
@@ -200,6 +200,10 @@ class UsBackupHost:
         for category, attr in categories.items():
             self._logger.debug(f'{category} protected versions: {attr["versions"]}')
             protected += attr['versions']
+            
+        # always protect latest version
+        protected += versions[-1:]
+        self._logger.debug(f'Last version protected: {protected[-1]}')
             
         protected = list(set(protected))
         protected.sort()

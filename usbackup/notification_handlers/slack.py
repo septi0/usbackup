@@ -1,4 +1,3 @@
-import logging
 from usbackup.arequest import arequest_post
 from usbackup.backup_result import UsbackupResult
 from usbackup.notification_handlers.base import NotificationHandler, NotificationHandlerError
@@ -10,11 +9,11 @@ class SlackHandler(NotificationHandler):
         'channel': {'required': True, 'type': str},
     }
     
-    def __init__(self, config: dict, *, logger: logging.Logger):
-        self._slack_token: str = config.get("token")
-        self._slack_channel: str = config.get("channel")
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         
-        self._logger: logging.Logger = logger
+        self._slack_token: str = self._config.get("token")
+        self._slack_channel: str = self._config.get("channel")
         
         self._slack_api_url = 'https://slack.com/api/files.upload'
 

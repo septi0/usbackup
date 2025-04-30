@@ -1,4 +1,3 @@
-import logging
 import shlex
 import usbackup.cmd_exec as cmd_exec
 from usbackup.backup_result import UsbackupResult
@@ -12,12 +11,12 @@ class EmailHandler(NotificationHandler):
         'command': {'type': str, 'default': 'sendmail -t'},
     }
     
-    def __init__(self, config: dict, *, logger: logging.Logger):
-        self._from_address: str = config["from"]
-        self._email_addresses: list[str] = config["to"]
-        self._email_command: list = shlex.split(config["command"])
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         
-        self._logger: logging.Logger = logger
+        self._from_address: str = self._config.get("from")
+        self._email_addresses: list[str] = self._config.get("to")
+        self._email_command: list = shlex.split(self._config.get("command"))
 
     async def notify(self, job_name: str, status: str, results: list[UsbackupResult]) -> None:
         to = ", ".join(self._email_addresses)

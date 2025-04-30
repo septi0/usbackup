@@ -1,26 +1,20 @@
 import os
-import logging
 import json
 import usbackup.cmd_exec as cmd_exec
 from usbackup.backup_handlers.base import BackupHandler, BackupHandlerError
-from usbackup.remote import Remote
 
 class HomeassistantConfigHandler(BackupHandler):
     handler: str = 'homeassistant-config'
     lexicon: dict = {}
     
-    def __init__(self, src_host: Remote, config: dict, *, logger: logging.Logger = None):
-        self._src_host: Remote = src_host
-        
-        self._logger: logging.Logger = logger
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
     async def backup(self, dest: str, dest_link: str = None) -> None:
         self._logger.info(f'Generating backup archive on "{self._src_host.host}"')
         
-        try:
-            result = await cmd_exec.exec_cmd(['ha', 'backups', 'new', '--name', 'usbackup', '--raw-json', '--no-progress'], host=self._src_host)
-        except Exception as e:
-            raise BackupHandlerError(f'Failed to create backup: {e}', 1020)
+        result = await cmd_exec.exec_cmd(['ha', 'backups', 'new', '--name', 'usbackup', '--raw-json', '--no-progress'], host=self._src_host)
+        self._cleanup.add_job(f'remove_ha_backup_{self._id}', cmd_exec.exec_cmd, ['ha', 'backups', 'remove', slug], host=self._src_host)
         
         # convert result to json
         try:
@@ -40,7 +34,4 @@ class HomeassistantConfigHandler(BackupHandler):
         
         self._logger.info(f'Deleting backup archive on "{self._src_host.host}"')
         
-        try:
-            await cmd_exec.exec_cmd(['ha', 'backups', 'remove', slug], host=self._src_host)
-        except Exception as e:
-            raise BackupHandlerError(f'Failed to delete backup: {e}', 1023)
+        await self._cleanup.run_job(f'remove_ha_backup_{self._id}')

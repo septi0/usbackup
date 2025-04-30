@@ -1,9 +1,7 @@
 import os
-import logging
 import datetime
 import usbackup.cmd_exec as cmd_exec
 from usbackup.backup_handlers.base import BackupHandler, BackupHandlerError
-from usbackup.remote import Remote
 
 class FilesHandler(BackupHandler):
     handler: str = 'files'
@@ -14,15 +12,13 @@ class FilesHandler(BackupHandler):
         'mode': {'type': str, 'default': 'incremental', 'allowed': ['incremental', 'archive', 'full']},
     }
     
-    def __init__(self, src_host: Remote, config: dict, *, logger: logging.Logger) -> None:
-        self._src_host: Remote = src_host
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         
-        self._src_paths: list[str] = self._gen_backup_src(config.get("limit"))
-        self._exclude: list[str] = config.get("exclude")
-        self._bwlimit: str = config.get("bwlimit")
-        self._mode: str = config.get("mode")
-        
-        self._logger = logger
+        self._src_paths: list[str] = self._gen_backup_src(self._config.get("limit"))
+        self._exclude: list[str] = self._config.get("exclude")
+        self._bwlimit: str = self._config.get("bwlimit")
+        self._mode: str = self._config.get("mode")
 
     async def backup(self, dest: str, dest_link: str = None) -> list:
         if self._mode == 'incremental':
