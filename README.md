@@ -8,6 +8,9 @@ It features a simple configuration file that allows you to configure different h
 
 Files can be backed up from local storage or from remote storage, also they can be backed up using incremental, full or archive mode. (The first one being the most efficient in terms of space and time)
 
+**WARNING!** If using UsBackup prior to version 2.0, please note that the configuration file format and backup directories structure have changed and they are not compatible with versions 1.x and 0.x. Please check the `config.sample.yml` file for the new format and migrate your configuration file accordingly.
+Version 1.x is still available in the `legacy` branch.
+
 ## Features
 
 - Backup files
