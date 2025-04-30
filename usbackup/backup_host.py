@@ -179,18 +179,23 @@ class UsBackupHost:
             for version in versions:
                 version_date = datetime.datetime.strptime(version, self._version_format)
                 
+                # stop processing if we reach the current date for given filter
                 if attr['filter'] and version_date.strftime(attr['filter']) == date_now.strftime(attr['filter']):
                     break
                 
                 if not attr['prev']:
+                    # always add first version
                     categories[category]['versions'].append(version)
                 else:
                     if attr['filter'] and version_date.strftime(attr['filter']) == attr['prev'].strftime(attr['filter']):
+                        # remove last version if it is the same as previous for given filter
                         categories[category]['versions'].pop()
-                            
+                    
+                    # add current version
                     categories[category]['versions'].append(version)
                         
                 if len(categories[category]['versions']) > retention_policy[category]:
+                    # remove oldest version if we have more than retention policy
                     categories[category]['versions'].pop(0)
                 
                 categories[category]['prev'] = version_date
