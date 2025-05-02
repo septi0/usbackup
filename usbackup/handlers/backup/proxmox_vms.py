@@ -1,25 +1,30 @@
 import os
-import usbackup.cmd_exec as cmd_exec
-from usbackup.backup_handlers.base import BackupHandler, BackupHandlerError
+import usbackup.libraries.cmd_exec as cmd_exec
+from typing import Literal
+from usbackup.models.remote import RemoteModel
+from usbackup.handlers.backup import UsBackupHandlerBaseModel, BackupHandler, BackupHandlerError
+
+class ProxmoxVmsHandlerModel(UsBackupHandlerBaseModel):
+    handler: str = 'proxmox_vms'
+    limit: list[int] = []
+    exclude: list[int] = []
+    bwlimit: int = None
+    mode: Literal['snapshot', 'suspend', 'stop'] = 'snapshot'
+    compress: Literal['zstd', 'gzip', 'lzo', 'none'] = 'zstd'
 
 class ProxmoxVmsHandler(BackupHandler):
-    handler: str = 'proxmox-vms'
-    lexicon: dict = {
-        'limit': {'type': list},
-        'exclude': {'type': list},
-        'bwlimit': {'type': int},
-        'mode': {'type': str, 'default': 'snapshot', 'allowed': ['snapshot', 'suspend', 'stop']},
-        'compress': {'type': str, 'default': 'zstd', 'allowed': ['zstd', 'gzip', 'lzo', 'none']},
-    }
+    handler: str = 'proxmox_vms'
     
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, host: RemoteModel, model: ProxmoxVmsHandlerModel, *args, **kwargs) -> None:
+        super().__init__(host, model, *args, **kwargs)
         
-        self._limit: list[int] = self._config.get("limit")
-        self._exclude: list[int] = self._config.get("exclude")
-        self._bwlimit: str = self._config.get("bwlimit")
-        self._mode: str = self._config.get("mode")
-        self._compress: str = self._config.get("compress")
+        self._host: RemoteModel = host
+        
+        self._limit: list[int] = model.limit
+        self._exclude: list[int] = model.exclude
+        self._bwlimit: str = model.bwlimit
+        self._mode: str = model.mode
+        self._compress: str = model.compress
 
         self._compression_types = {
             'zstd': 'vma.zst',
@@ -29,17 +34,17 @@ class ProxmoxVmsHandler(BackupHandler):
         }
 
     async def backup(self, dest: str, dest_link: str = None) -> None:
-        self._logger.info(f'Fetching VM list from "{self._src_host.host}"')
+        self._logger.info(f'Fetching VM list from "{self._host}"')
         
         try:
-            exec_ret = await cmd_exec.exec_cmd(['qm', 'list'], host=self._src_host)
+            exec_ret = await cmd_exec.exec_cmd(['qm', 'list'], host=self._host)
         except Exception as e:
             raise BackupHandlerError(f'Failed to fetch VM list: {e}', 1001)
         
         vms = [int(line.split()[0]) for line in exec_ret.splitlines()[1:] if line.strip()]
         
         if not vms:
-            self._logger.info(f'No VMs found on "{self._src_host.host}"')
+            self._logger.info(f'No VMs found on "{self._host}"')
             return
         
         # Filter VMs based on limit/exclude lists
@@ -74,6 +79,6 @@ class ProxmoxVmsHandler(BackupHandler):
         file_name = f'vzdump-qemu-{vm}.{self._compression_types[self._compress]}'
 
         with open(os.path.join(dest, file_name), 'wb') as f:
-            self._logger.info(f'Streaming vzdump for VM {vm} from "{self._src_host.host}" to "{dest}"')
+            self._logger.info(f'Streaming vzdump for VM {vm} from "{self._host}" to "{dest}"')
             
-            await cmd_exec.exec_cmd(['vzdump', str(vm), *cmd_options], stdout=f, host=self._src_host)
+            await cmd_exec.exec_cmd(['vzdump', str(vm), *cmd_options], stdout=f, host=self._host)

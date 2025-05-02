@@ -1,23 +1,24 @@
-from usbackup.arequest import arequest_post
-from usbackup.backup_result import UsbackupResult
-from usbackup.notification_handlers.base import NotificationHandler, NotificationHandlerError
+from usbackup.libraries.arequest import arequest_post
+from usbackup.models.result import UsBackupResultModel
+from usbackup.handlers.notification import UsBackupHandlerBaseModel, NotificationHandler, NotificationHandlerError
+
+class SlackHandlerModel(UsBackupHandlerBaseModel):
+    handler: str = 'slack'
+    token: str
+    channel: str
 
 class SlackHandler(NotificationHandler):
     handler: str = 'slack'
-    lexicon: dict = {
-        'token': {'required': True, 'type': str},
-        'channel': {'required': True, 'type': str},
-    }
     
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: SlackHandlerModel, *args, **kwargs) -> None:
+        super().__init__(model, *args, **kwargs)
         
-        self._slack_token: str = self._config.get("token")
-        self._slack_channel: str = self._config.get("channel")
+        self._slack_token: str = model.token
+        self._slack_channel: str = model.channel
         
         self._slack_api_url = 'https://slack.com/api/files.upload'
 
-    async def notify(self, job_name: str, status: str, results: list[UsbackupResult]) -> None:
+    async def notify(self, job_name: str, status: str, results: list[UsBackupResultModel]) -> None:
         details = [res.message for res in results if res.message]
         details = "\n".join(details)
 

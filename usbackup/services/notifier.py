@@ -1,16 +1,16 @@
 import logging
-from usbackup.backup_result import UsbackupResult
-from usbackup.notification_handlers.base import NotificationHandler
+from usbackup.models.handler_base import UsBackupHandlerBaseModel
+from usbackup.models.result import UsBackupResultModel
+from usbackup.handlers.notification import NotificationHandler
 
 __all__ = ['UsbackupNotifier']
-
 class UsbackupNotifier:
     def __init__(self, handlers: list[NotificationHandler], *, logger: logging.Logger):
         self._handlers: list[NotificationHandler] = handlers
         
         self._logger: logging.Logger = logger
 
-    async def notify(self, name: str, results: list[UsbackupResult], *, notification_policy: str = None) -> None:
+    async def notify(self, name: str, type: str, results: list[UsBackupResultModel], *, notification_policy: str = None) -> None:
         errors = any(result.status != 'ok' for result in results)
         status = 'ok' if not errors else 'failed'
         
@@ -26,7 +26,7 @@ class UsbackupNotifier:
         
         for handler in self._handlers:
             try:
-                self._logger.info(f'Sending notification via "{handler.name}" handler')
+                self._logger.info(f'Sending notification via "{handler.handler}" handler')
                 await handler.notify(name, status, results)
             except Exception as e:
-                self._logger.error(f"Failed to send notification via {handler.name}: {e}")
+                self._logger.error(f"Failed to send notification via {handler.handler}: {e}")

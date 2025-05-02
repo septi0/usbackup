@@ -1,22 +1,26 @@
 hosts:
-  - name: host1
-    host: user:password@host1:port # Hostname of the remote host
-    backup:
+  - name: host1 # The name of the host to be backed up
+
+    host: user:password@host1:port # Hostname of the remote host (use 'localhost' for local backups)
+
+    dest: /path/to/host1/backup # Destination path to be used when performing the backup
+
+    handlers:
     - handler: files # enable Files backup
       mode: incremental # available modes: full, incremental, archive. Default: incremental
       limit: [/etc, /home, /root] # list of files/directories to backup - optional (if no paths are provided, all contents from / will be included, except the ones in the exclude list)
       exclude: ['/etc/passwd'] # list of files/directories to exclude from the backup - optional
       bwlimit: # limit the bandwidth - optional
 
-    - handler: openwrt_config # enable OpenWrt config backup
+    - handler: openwrt # enable OpenWrt config backup
 
-    - handler: truenas_config # enable TrueNAS config backup
+    - handler: truenas # enable TrueNAS config backup
 
     - handler: zfs_datasets # enable ZFS datasets backup
       limit: [dataset1, dataset2] # list of datasets to backup - optional (if no datasets are provided, all datasets will be included, except the ones in the exclude list)
       exclude: [dataset3] # list of datasets to exclude from the backup - optional
 
-    - handler: homeassistant_config # enable Home Assistant config backup
+    - handler: homeassistant # enable Home Assistant config backup
 
     - handler: proxmox_vms # enable Proxmox VMs backup
       mode: snapshot # available modes: snapshot, suspend, stop. Default: snapshot
@@ -27,34 +31,34 @@ hosts:
 
 jobs:
   - name: job1 # The name of the backup job
-    
-    dest: /path/to/backup # Destination path to be used when performing the backup. If no destination is provided, the default-dest will be used
+
+    type: backup # Type of job to be performed. Available types: backup, replication
+
+    schedule: 0 0 * * * # Cron schedule to be used when running the job. Default: 0 0 * * *
 
     limit: [host1] # list of hosts for the backup job - optional (if no hosts are provided, all hosts will be included, except the ones in the exclude list)
 
     exclude: [host2] # list of hosts to exclude from the backup job - optional
 
-    schedule: 0 0 * * * # Cron schedule to be used when performing the backup. Default: 0 0 * * *
+    retention_policy: # Pruning policy to be applied to versions - optional (if no policy is provided, all versions will be kept indefinitely)
+      last: 3 # Number of last versions to keep (this ensures that the last N versions are kept, regardless of the other policies)
+      hourly: 24 # Number of hourly versions to keep
+      daily: 7 # Number of daily versions to keep
+      weekly: 4 # Number of weekly versions to keep
+      monthly: 12 # Number of monthly versions to keep
+      yearly: 5 # Number of yearly versions to keep
 
-    retention-policy: # The policy to be applied to the backup job - optional (if no policy is provided, all backups will be kept indefinitely)
-      last: 3 # Number of last backups to keep (this ensures that the last N backups are kept, regardless of the other policies)
-      hourly: 24 # Number of hourly backups to keep
-      daily: 7 # Number of daily backups to keep
-      weekly: 4 # Number of weekly backups to keep
-      monthly: 12 # Number of monthly backups to keep
-      yearly: 5 # Number of yearly backups to keep
-
-    notification-policy: always # The notification policy. Available policies: always, on-failure, never. Default: always
+    notification_policy: always # The notification policy. Available policies: always, on-failure, never. Default: always
 
     concurrency: 1 # Number of concurrent hosts to be backed up. Default: 1
 
-    pre-backup-cmd: /path/to/pre_backup.sh # Command to be executed before performing the backup job - optional
+    pre_run_cmd: /path/to/pre_run.sh # Command to be executed before performing the job - optional
 
-    post-backup-cmd: /path/to/post_backup.sh # Command to be executed after performing the backup job - optional
+    post_run_cmd: /path/to/post_run.sh # Command to be executed after performing the job - optional
 
-notification:
+notifiers:
   - handler: email # enable email report
-    from: from@example.com # Email from address to be used in the email report
+    sender: from@example.com # Email from address to be used in the email report
     to: [email@emample.com] # Email addresses to be used when sending the email report
     command: sendmail -t # Custom email command. Optional
   - handler: slack # enable slack report

@@ -1,9 +1,15 @@
 import logging
 import asyncio
 import shlex
-from usbackup.remote import Remote
 
 __all__ = ['CmdExecError', 'ProcessError', 'exec_cmd', 'mkdir', 'copy', 'move', 'remove', 'mount', 'mount_all', 'umount', 'umount_all', 'mounted', 'rsync', 'scp', 'tar', 'du']
+
+class CmdExecHostModel:
+    host: str
+    user: str = 'root'
+    password: str = None
+    port: int = 22
+    local: bool
 
 class CmdExecError(Exception):
     pass
@@ -13,7 +19,7 @@ class ProcessError(Exception):
         super().__init__(message)
         self.code = code
 
-async def exec_cmd(cmd: list, *, host: Remote = None, input: str = None, env=None, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE) -> str:
+async def exec_cmd(cmd: list, *, host: CmdExecHostModel = None, input: str = None, env=None, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE) -> str:
     if host and not host.local:
         cmd = gen_ssh_cmd(cmd, host)
     
@@ -40,57 +46,57 @@ async def exec_cmd(cmd: list, *, host: Remote = None, input: str = None, env=Non
     
     return result
 
-async def mkdir(path: str, *, host: Remote = None):
+async def mkdir(path: str, *, host: CmdExecHostModel = None):
     if not path:
         raise CmdExecError("Path not specified")
 
     return await exec_cmd(["mkdir", "-p", path], host=host)
 
-async def copy(src: str, dst: str, *, host: Remote = None):
+async def copy(src: str, dst: str, *, host: CmdExecHostModel = None):
     if not src or not dst:
         raise CmdExecError("Source or destination not specified")
 
     return await exec_cmd(["cp", src, dst], host=host)
 
-async def move(src: str, dst: str, *, host: Remote = None):
+async def move(src: str, dst: str, *, host: CmdExecHostModel = None):
     if not src or not dst:
         raise CmdExecError("Source or destination not specified")
 
     return await exec_cmd(["mv", src, dst], host=host)
 
-async def remove(path: str, *, host: Remote = None):
+async def remove(path: str, *, host: CmdExecHostModel = None):
     if not path:
         raise CmdExecError("Path not specified")
 
     return await exec_cmd(["rm", "-rf", path], host=host)
 
-async def mount(mount: str, *, host: Remote = None):
+async def mount(mount: str, *, host: CmdExecHostModel = None):
     if not mount:
         raise CmdExecError("Mount dir not specified")
 
     return await exec_cmd(["mount", mount], host=host)
 
-async def mount_all(mount_list: list, *, host: Remote = None):
+async def mount_all(mount_list: list, *, host: CmdExecHostModel = None):
     for m in mount_list:
         mount(m, host=host)
 
-async def umount(umount: str, *, host: Remote = None):
+async def umount(umount: str, *, host: CmdExecHostModel = None):
     if not umount:
         raise CmdExecError("Umount dir not specified")
 
     return await exec_cmd(["umount", umount], host=host)
 
-async def umount_all(umount_List: list, *, host: Remote = None):
+async def umount_all(umount_List: list, *, host: CmdExecHostModel = None):
     for u in umount_List:
         umount(u, host=host)
 
-async def mounted(mount: str, *, host: Remote = None):
+async def mounted(mount: str, *, host: CmdExecHostModel = None):
     if not mount:
         raise CmdExecError("Mount dir not specified")
 
     return await exec_cmd(["mountpoint", "-q", mount], host=host)
 
-async def rsync(src: str | list, dst: str, *, host: Remote = None, options: list = []):
+async def rsync(src: str | list, dst: str, *, host: CmdExecHostModel = None, options: list = []):
     if not src or not dst:
         raise CmdExecError("Source or destination not specified")
 
@@ -123,7 +129,7 @@ async def rsync(src: str | list, dst: str, *, host: Remote = None, options: list
 
     return await exec_cmd([*cmd_prefix, "rsync", *cmd_options, *src, dst])
 
-async def scp(src: str, dst: str, *, host: Remote = None):
+async def scp(src: str, dst: str, *, host: CmdExecHostModel = None):
     if not src or not dst:
         raise CmdExecError("Source or destination not specified")
 
@@ -151,13 +157,13 @@ async def scp(src: str, dst: str, *, host: Remote = None):
 
     return await exec_cmd([*cmd_prefix, "scp", *ssh_opts, *src, dst])
 
-async def tar(dst: str, src: list[str], *, host: Remote = None):
+async def tar(dst: str, src: list[str], *, host: CmdExecHostModel = None):
     if not dst or not src:
         raise CmdExecError("Source or destination not specified")
 
     return await exec_cmd(["tar", "-czf", dst, *src], host=host)
 
-async def du(path: str, *, host: Remote = None, match: str = None):
+async def du(path: str, *, host: CmdExecHostModel = None, match: str = None):
     if not path:
         raise CmdExecError("Path not specified")
     
@@ -166,7 +172,7 @@ async def du(path: str, *, host: Remote = None, match: str = None):
     else:
         return await exec_cmd(["du", "-sk", path], host=host)
     
-async def is_host_reachable(host: Remote) -> bool:
+async def is_host_reachable(host: CmdExecHostModel) -> bool:
     try:
         await exec_cmd(['echo', '1'], host=host)
         return True
@@ -188,7 +194,7 @@ def parse_cmd_options(options: list, *, arg_separator: str = ''):
 
     return cmd_options
 
-def gen_ssh_cmd(cmd: list, host: Remote) -> list:
+def gen_ssh_cmd(cmd: list, host: CmdExecHostModel) -> list:
     if not cmd or not host:
         raise CmdExecError("Command or host not specified")
 

@@ -1,7 +1,7 @@
 
-__all__ = ['UsbackupResult']
+__all__ = ['UsBackupResult']
 
-class UsbackupResult:
+class UsBackupResultModel:
     def __init__(self, name: str, *, message: str = None, error: Exception = None, elapsed_time: int = 0, dest: str = '') -> None:
         self._name: str = name
         

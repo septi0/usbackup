@@ -1,24 +1,29 @@
 import os
 import datetime
-import usbackup.cmd_exec as cmd_exec
-from usbackup.backup_handlers.base import BackupHandler, BackupHandlerError
+import usbackup.libraries.cmd_exec as cmd_exec
+from typing import Literal
+from usbackup.handlers.backup import UsBackupHandlerBaseModel, BackupHandler, BackupHandlerError
+from usbackup.models.remote import RemoteModel
+
+class FilesHandlerModel(UsBackupHandlerBaseModel):
+    handler: str = 'files'
+    limit: list[str] = []
+    exclude: list[str] = []
+    bwlimit: int = None
+    mode: Literal['incremental', 'archive', 'full'] = 'incremental'
 
 class FilesHandler(BackupHandler):
     handler: str = 'files'
-    lexicon: dict = {
-        'limit': {'type': list},
-        'exclude': {'type': list},
-        'bwlimit': {'type': int},
-        'mode': {'type': str, 'default': 'incremental', 'allowed': ['incremental', 'archive', 'full']},
-    }
     
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, host: RemoteModel, model: FilesHandlerModel, *args, **kwargs) -> None:
+        super().__init__(host, model, *args, **kwargs)
         
-        self._src_paths: list[str] = self._gen_backup_src(self._config.get("limit"))
-        self._exclude: list[str] = self._config.get("exclude")
-        self._bwlimit: str = self._config.get("bwlimit")
-        self._mode: str = self._config.get("mode")
+        self._host: RemoteModel = host
+        
+        self._src_paths: list[str] = self._gen_backup_src(model.limit)
+        self._exclude: list[str] = model.exclude
+        self._bwlimit: str = model.bwlimit
+        self._mode: str = model.mode
 
     async def backup(self, dest: str, dest_link: str = None) -> list:
         if self._mode == 'incremental':
@@ -79,10 +84,10 @@ class FilesHandler(BackupHandler):
             if dest_link:
                 options.append(('link-dest', dest_link))
 
-            self._logger.info(f'Copying "{dir_src}" from "{self._src_host.host}" to "{dest}"')
+            self._logger.info(f'Copying "{dir_src}" from "{self._host}" to "{dest}"')
             start_time = datetime.datetime.now()
             
-            stats = await cmd_exec.rsync(dir_src, dest, host=self._src_host, options=options)
+            stats = await cmd_exec.rsync(dir_src, dest, host=self._host, options=options)
             
             self._logger.debug(stats)
             
@@ -90,14 +95,14 @@ class FilesHandler(BackupHandler):
             elapsed_time = end_time - start_time
             elapsed_time_s = elapsed_time.total_seconds()
             
-            self._logger.info(f'Finished copying "{dir_src}" from "{self._src_host.host}" in {elapsed_time_s:.2f} seconds')
+            self._logger.info(f'Finished copying "{dir_src}" from "{self._host}" in {elapsed_time_s:.2f} seconds')
     
     async def _backup_tar(self, dest: str) -> None:
-        destination_archive = os.path.join(dest, f'{self._src_host.host}.tar.gz')
+        destination_archive = os.path.join(dest, f'{self._host}.tar.gz')
         sources = []
 
         for src in self._src_paths:
-            if not self._src_host.local:
+            if not self._host.local:
                 raise BackupHandlerError('Archive mode does not support remote backup', 1032)
 
             sources.append(src)

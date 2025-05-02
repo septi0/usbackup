@@ -1,24 +1,25 @@
 import shlex
-import usbackup.cmd_exec as cmd_exec
-from usbackup.backup_result import UsbackupResult
-from usbackup.notification_handlers.base import NotificationHandler, NotificationHandlerError
+import usbackup.libraries.cmd_exec as cmd_exec
+from usbackup.models.result import UsBackupResultModel
+from usbackup.handlers.notification import UsBackupHandlerBaseModel, NotificationHandler, NotificationHandlerError
+
+class EmailHandlerModel(UsBackupHandlerBaseModel):
+    handler: str = 'email'
+    sender: str
+    to: list[str]
+    command: str = 'sendmail -t'
 
 class EmailHandler(NotificationHandler):
     handler: str = 'email'
-    lexicon: dict = {
-        'from': {'required': True, 'type': str},
-        'to': {'required': True, 'type': list},
-        'command': {'type': str, 'default': 'sendmail -t'},
-    }
     
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: EmailHandlerModel, *args, **kwargs) -> None:
+        super().__init__(model, *args, **kwargs)
         
-        self._from_address: str = self._config.get("from")
-        self._email_addresses: list[str] = self._config.get("to")
-        self._email_command: list = shlex.split(self._config.get("command"))
+        self._from_address: str = model.sender
+        self._email_addresses: list[str] = model.to
+        self._email_command: list = shlex.split(model.command)
 
-    async def notify(self, job_name: str, status: str, results: list[UsbackupResult]) -> None:
+    async def notify(self, job_name: str, status: str, results: list[UsBackupResultModel]) -> None:
         to = ", ".join(self._email_addresses)
         body = self._gen_email_body(job_name, status, results)
         subject = f'Backup status ({job_name}): backup {status}'
@@ -30,7 +31,7 @@ class EmailHandler(NotificationHandler):
         except Exception as e:
             raise NotificationHandlerError(f'Email exception: {e}', 1011)
         
-    def _gen_email_body(self, job_name: str, status: str, results: list[UsbackupResult]) -> str:
+    def _gen_email_body(self, job_name: str, status: str, results: list[UsBackupResultModel]) -> str:
         summary_table = ''
         details = ''
         

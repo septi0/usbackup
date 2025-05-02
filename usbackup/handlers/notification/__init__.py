@@ -1,26 +1,22 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from usbackup.backup_result import UsbackupResult
+from usbackup.models.result import UsBackupResultModel
+from usbackup.models.handler_base import UsBackupHandlerBaseModel
+
+__all__ = ['NotificationHandler', 'NotificationHandlerError']
 
 class NotificationHandler(ABC):
     handler: str = None
-    lexicon: dict = {}
-    
-    def __init__(self, config: dict, *, logger: logging.Logger):
-        self._config: dict = config
-        
+
+    def __init__(self, model: UsBackupHandlerBaseModel, *, logger: logging.Logger):
         self._logger: logging.Logger = logger
         
         self._id: str = str(uuid.uuid4())
 
     @abstractmethod
-    async def notify(self, job_name: str, status: str, results: list[UsbackupResult]) -> None:
+    async def notify(self, job_name: str, status: str, results: list[UsBackupResultModel]) -> None:
         pass
-
-    @property
-    def name(self) -> str:
-        return self.handler
 
 class NotificationHandlerError(Exception):
     def __init__(self, message, code):

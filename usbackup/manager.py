@@ -1,43 +1,44 @@
 import os
 import logging
 import signal
-import math
+import yaml
 import datetime
 import asyncio
-from usbackup.cleanup_queue import CleanupQueue
-from usbackup.remote import Remote
-from usbackup.backup_config_parser import UsBackupConfigParser
-from usbackup.backup_job import UsBackupJob
-from usbackup.backup_host import UsBackupHost
-from usbackup.backup_notifier import UsbackupNotifier
+from usbackup.libraries.cleanup_queue import CleanupQueue
+from usbackup.models.usbackup import UsBackupModel
+from usbackup.models.job import UsBackupJobModel
+from usbackup.models.host import UsBackupHostModel
+from usbackup.models.handler_base import UsBackupHandlerBaseModel
+from usbackup.services.host import UsBackupHost
+from usbackup.services.job import UsBackupJob
+from usbackup.services.notifier import UsbackupNotifier
 from usbackup.exceptions import UsbackupRuntimeError, GracefulExit
-from usbackup.backup_handlers import dynamic_loader as backup_handler_loader
-from usbackup.notification_handlers import dynamic_loader as notification_handler_loader
+from usbackup.handlers import handler_factory
 
 __all__ = ['UsBackupManager']
 
 class UsBackupManager:
-    def __init__(self, *, config_file: str = None, log_file: str = None, log_level: str = None) -> None:
+    def __init__(self, *, log_file: str = None, log_level: str = None, config_file: str = None, ) -> None:
         self._pid_filepath: str = self._gen_pid_filepath()
-        
-        if not config_file:
-            config_file = self._get_default_config_file()
 
-        self._config: UsBackupConfigParser = UsBackupConfigParser(file=config_file)
         self._logger: logging.Logger = self._logger_factory(log_file, log_level)
-        
+        self._model: UsBackupModel = UsBackupModel(**self._load_config(config_file))
+            
         self._cleanup: CleanupQueue = CleanupQueue()
-        self._notifier: UsbackupNotifier = self._notifier_factory(self._config.get('notification'))
+        self._notifier: UsbackupNotifier = self._notifier_factory(self._model.notifiers)
 
     def backup(self, daemon: bool = False, config: dict = {}) -> None:
         return self._run_main(self._run_backup, daemon=daemon, config=config)
     
-    def _get_default_config_file(self) -> str:
+    def _load_config(self, file: str = None) -> str:
         config_files = [
             '/etc/usbackup/config.yml',
             '/etc/opt/usbackup/config.yml',
             os.path.expanduser('~/.config/usbackup/config.yml'),
         ]
+        
+        if file:
+            config_files = [file]
             
         file_to_load = None
         
@@ -47,9 +48,15 @@ class UsBackupManager:
                 break
        
         if not file_to_load:
-            raise UsbackupRuntimeError("No default config file found")
+            raise UsbackupRuntimeError("No config file found")
         
-        return file_to_load
+        with open(file_to_load, 'r') as f:
+            try:
+                config = yaml.safe_load(f)
+            except yaml.YAMLError as e:
+                raise UsbackupRuntimeError(f"Failed to parse config file: {e}")
+            
+        return config
         
     def _gen_pid_filepath(self) -> str:
         if os.getuid() == 0:
@@ -86,20 +93,49 @@ class UsBackupManager:
 
         return logger
     
-    def _notifier_factory(self, config: list) -> UsbackupNotifier:
-        if not config:
-            return UsbackupNotifier([], logger=self._logger)
-
+    def _notifier_factory(self, handlers_models: list[UsBackupHandlerBaseModel]) -> UsbackupNotifier:
+        if not handlers_models:
+            return None
+        
         notifier_logger = self._logger.getChild('notifier')
         handlers = []
 
-        for notifier_config in config:
-            handler_logger = notifier_logger.getChild(notifier_config.get('handler'))
-            handler_class = notification_handler_loader(notifier_config.get('handler'))
+        for handler_model in handlers_models:
+            handler_logger = notifier_logger.getChild(handler_model.handler)
+            handler_class = handler_factory('notification', name=handler_model.handler, entity='handler')
 
-            handlers.append(handler_class(notifier_config, logger=handler_logger))
+            handlers.append(handler_class(handler_model, logger=handler_logger))
 
         return UsbackupNotifier(handlers, logger=notifier_logger)
+    
+    def _backup_job_factory(self, job_model: UsBackupJobModel) -> UsBackupJob:
+        host_models = self._model.hosts
+        
+        # filter host models
+        if job_model.limit:
+            host_models = [host for host in host_models if host.get('name') in job_model.limit]
+        
+        if job_model.exclude:
+            host_models = [host for host in host_models if host.get('name') not in job_model.exclude]
+            
+        if not host_models:
+            raise UsbackupRuntimeError("No hosts left to backup after limit/exclude filters")
+            
+        hosts = []
+        
+        for host_model in host_models:                
+            hosts.append(self._backup_host_factory(host_model))
+            
+        logger = self._logger.getChild(job_model.name)
+            
+        return UsBackupJob(job_model, hosts=hosts, notifier=self._notifier, logger=logger)
+    
+    def _backup_host_factory(self, host_model: UsBackupHostModel) -> UsBackupHost:
+        host_name = host_model.name
+        
+        host_logger = self._logger.getChild(host_name)
+        
+        return UsBackupHost(host_model, cleanup=self._cleanup, logger=host_logger)
     
     def _sigterm_handler(self) -> None:
         raise GracefulExit
@@ -159,27 +195,28 @@ class UsBackupManager:
     async def _run_backup(self, daemon: bool = False, config: dict = {}) -> None:
         if not daemon:
             config['name'] = 'manual'
-            if config.get('retention-policy'):
+            config['type'] = 'backup'
+            if config.get('retention_policy'):
                 # convert retention_policy to dict
-                config['retention-policy'] = config['retention-policy'].split(',')
-                config['retention-policy'] = {k.strip(): int(v) for k, v in (x.split('=') for x in config['retention-policy'])}
+                config['retention_policy'] = config['retention_policy'].split(',')
+                config['retention_policy'] = {k.strip(): int(v) for k, v in (x.split('=') for x in config['retention_policy'])}
                 
-            config = UsBackupConfigParser(config=config, section='jobs')
+            job_model = UsBackupJobModel(**config)
                 
-            backup_job = self._backup_job_factory(config)
+            backup_job = self._backup_job_factory(job_model)
             
             await backup_job.run()
             return
         
-        jobs_configs = self._config.get('jobs')
+        jobs_models = self._model.jobs
         
-        if not jobs_configs:
+        if not jobs_models:
             self._logger.error("No jobs found in config")
             return
         
         backup_jobs = []
         
-        for job_config in jobs_configs:
+        for job_config in jobs_models:
             backup_jobs.append(self._backup_job_factory(job_config))
         
         # run as service
@@ -217,50 +254,6 @@ class UsBackupManager:
             self._logger.debug(f'Next run in {time_left} s')
 
             await asyncio.sleep(time_left)
-    
-    def _backup_job_factory(self, job_config: dict) -> UsBackupJob:
-        hosts_config = self._config.get('hosts')
-        
-        if job_config.get('limit'):
-            hosts_config = [host for host in hosts_config if host.get('name') in job_config['limit']]
-        
-        if job_config.get('exclude'):
-            hosts_config = [host for host in hosts_config if host.get('name') not in job_config['exclude']]
-            
-        if not hosts_config:
-            raise UsbackupRuntimeError("No hosts left to backup after limit/exclude filters")
-            
-        hosts = []
-        
-        for host in hosts_config:                
-            hosts.append(self._backup_host_factory(host))
-    
-        dest = job_config.get('dest')
-            
-        if not dest:
-            raise UsbackupRuntimeError("No destination found for job")
-            
-        logger = self._logger.getChild(job_config.get('name'))
-            
-        return UsBackupJob(hosts, dest, job_config, notifier=self._notifier, logger=logger)
-    
-    def _backup_host_factory(self, host_config: dict) -> UsBackupHost:
-        host_name = host_config.get('name')
-        try:
-            remote = Remote(host_config.get('host'), default_user='root', default_port=22)
-        except ValueError:
-            raise UsbackupRuntimeError(f'Invalid host {host_config.get("host")}')
-        
-        host_logger = self._logger.getChild(host_name)
-        handlers = []
-        
-        for backup_config in host_config.get('backup'):
-            handler_logger = host_logger.getChild(backup_config.get('handler'))
-            handler_class = backup_handler_loader(backup_config.get('handler'))
-            
-            handlers.append(handler_class(remote, backup_config, cleanup=self._cleanup, logger=handler_logger))
-        
-        return UsBackupHost(host_name, remote, handlers, cleanup=self._cleanup, logger=host_logger)
     
     async def _run_due_jobs(self, backup_jobs: list[UsBackupJob]) -> None:
         tasks = []

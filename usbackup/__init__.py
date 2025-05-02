@@ -1,7 +1,7 @@
 import sys
 import argparse
+from pydantic import ValidationError
 from usbackup.manager import UsBackupManager
-from usbackup.backup_config_parser import UsbackupConfigError
 from usbackup.info import __app_name__, __version__, __description__, __author__, __author_email__, __author_url__, __license__
 
 def main():
@@ -39,8 +39,8 @@ def main():
       sys.exit()
 
     try:
-        usbackup = UsBackupManager(config_file=args.config_file, log_file=args.log_file, log_level=args.log_level)
-    except UsbackupConfigError as e:
+        usbackup = UsBackupManager(log_file=args.log_file, log_level=args.log_level, config_file=args.config_file)
+    except ValidationError as e:
         print(f"Config error: {e}\nCheck documentation for more information on how to configure usbackup")
         sys.exit(2)
     
@@ -51,13 +51,13 @@ def main():
             'dest': args.dest,
             'limit': args.limit,
             'exclude': args.exclude,
-            'retention-policy': args.retention_policy,
-            'notification-policy': args.notification_policy,
+            'retention_policy': args.retention_policy,
+            'notification_policy': args.notification_policy,
             'concurrency': args.concurrency,
         }
         
         config = {k : v for k, v in config.items() if v is not None}
-
+        
         usbackup.backup(daemon=False, config=config)
     elif args.command == 'daemon':
         usbackup.backup(daemon=True)
