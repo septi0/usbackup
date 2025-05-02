@@ -113,10 +113,10 @@ class UsBackupManager:
         
         # filter host models
         if job_model.limit:
-            host_models = [host for host in host_models if host.get('name') in job_model.limit]
+            host_models = [host for host in host_models if host.name in job_model.limit]
         
         if job_model.exclude:
-            host_models = [host for host in host_models if host.get('name') not in job_model.exclude]
+            host_models = [host for host in host_models if host.name not in job_model.exclude]
             
         if not host_models:
             raise UsbackupRuntimeError("No hosts left to backup after limit/exclude filters")
