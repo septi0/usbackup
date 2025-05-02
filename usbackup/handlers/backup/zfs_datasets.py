@@ -3,7 +3,7 @@ import usbackup.libraries.cmd_exec as cmd_exec
 from usbackup.models.remote import RemoteModel
 from usbackup.handlers.backup import UsBackupHandlerBaseModel, BackupHandler, BackupHandlerError
 
-class ProxmoxVmsHandlerModel(UsBackupHandlerBaseModel):
+class ZfsDatasetsHandlerModel(UsBackupHandlerBaseModel):
     handler: str = 'zfs_datasets'
     limit: list[str] = []
     exclude: list[str] = []
@@ -11,7 +11,7 @@ class ProxmoxVmsHandlerModel(UsBackupHandlerBaseModel):
 class ZfsDatasetsHandler(BackupHandler):
     handler: str = 'zfs_datasets'
     
-    def __init__(self, host: RemoteModel, model: ProxmoxVmsHandlerModel, *args, **kwargs) -> None:
+    def __init__(self, host: RemoteModel, model: ZfsDatasetsHandlerModel, *args, **kwargs) -> None:
         super().__init__(host, model, *args, **kwargs)
         
         self._host: RemoteModel = host
