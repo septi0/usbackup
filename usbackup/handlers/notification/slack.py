@@ -1,8 +1,8 @@
 from usbackup.libraries.arequest import arequest_post
-from usbackup.models.result import UsBackupResultModel
-from usbackup.handlers.notification import UsBackupHandlerBaseModel, NotificationHandler, NotificationHandlerError
+from usbackup.models.result import ResultModel
+from usbackup.handlers.notification import HandlerBaseModel, NotificationHandler, NotificationHandlerError
 
-class SlackHandlerModel(UsBackupHandlerBaseModel):
+class SlackHandlerModel(HandlerBaseModel):
     handler: str = 'slack'
     token: str
     channel: str
@@ -18,7 +18,7 @@ class SlackHandler(NotificationHandler):
         
         self._slack_api_url = 'https://slack.com/api/files.upload'
 
-    async def notify(self, job_name: str, status: str, results: list[UsBackupResultModel]) -> None:
+    async def notify(self, job_name: str, status: str, results: list[ResultModel]) -> None:
         details = [res.message for res in results if res.message]
         details = "\n".join(details)
 

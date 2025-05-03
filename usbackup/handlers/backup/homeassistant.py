@@ -1,9 +1,9 @@
 import os
 import json
 import usbackup.libraries.cmd_exec as cmd_exec
-from usbackup.handlers.backup import UsBackupHandlerBaseModel, BackupHandler, BackupHandlerError
+from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHandlerError
 
-class HomeassistantHandlerModel(UsBackupHandlerBaseModel):
+class HomeassistantHandlerModel(HandlerBaseModel):
     handler: str = 'homeassistant'
 
 class HomeassistantHandler(BackupHandler):

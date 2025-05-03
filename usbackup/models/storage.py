@@ -1,8 +1,8 @@
 from pydantic import BaseModel, ConfigDict
 
-__all__ = ['UsBackupStorageModel']
+__all__ = ['StorageModel']
 
-class UsBackupStorageModel(BaseModel):
+class StorageModel(BaseModel):
     name: str
     path: str
     

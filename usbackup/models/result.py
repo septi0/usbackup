@@ -1,14 +1,12 @@
-from usbackup.services.context import UsBackupContext
+from usbackup.services.context import ContextService
 
-__all__ = ['UsBackupResult']
-
-class UsBackupResultModel:
-    def __init__(self, context: UsBackupContext, *, message: str = None, error: Exception = None, elapsed_time: int = 0) -> None:
-        self._context: UsBackupContext = context
+class ResultModel:
+    def __init__(self, context: ContextService, *, message: str = None, error: Exception = None, elapsed: int = 0) -> None:
+        self._context: ContextService = context
         
         self._message: str = message
         self._error: Exception = error
-        self._elapsed_time: int = elapsed_time
+        self._elapsed: int = elapsed
         
         self._status = 'failed' if error else 'ok'
     
@@ -25,8 +23,8 @@ class UsBackupResultModel:
         return self._error
     
     @property
-    def elapsed_time(self) -> int:
-        return self._elapsed_time
+    def elapsed(self) -> int:
+        return self._elapsed
     
     @property
     def dest(self) -> str:

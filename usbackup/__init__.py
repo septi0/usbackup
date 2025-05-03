@@ -37,17 +37,25 @@ def main():
     if args.command is None:
       parser.print_help()
       sys.exit()
-
-    try:
-        usbackup = UsBackupManager(log_file=args.log_file, log_level=args.log_level, config_file=args.config_file)
-    except ValidationError as e:
-        print(f"Config error: {e}\nCheck documentation for more information on how to configure usbackup")
-        sys.exit(2)
+      
+    construct = {
+        'log_file': args.log_file,
+        'log_level': args.log_level,
+        'config_file': args.config_file,
+    }
     
     if args.command == 'configtest':
-        print("Configuration file is valid")
+        try:
+            UsBackupManager(**construct)
+            print("Configuration file is valid")
+        except ValidationError as e:
+            print(f"Config error: {e}\nCheck documentation for more information on how to configure usbackup")
+            sys.exit(2)
+        
     elif args.command == 'backup':
-        config = {
+        job = {
+            'name': 'manual-backup',
+            'type': 'backup',
             'dest': args.dest,
             'limit': args.limit,
             'exclude': args.exclude,
@@ -56,10 +64,10 @@ def main():
             'concurrency': args.concurrency,
         }
         
-        config = {k : v for k, v in config.items() if v is not None}
+        job = {k : v for k, v in job.items() if v is not None}
         
-        usbackup.backup(daemon=False, config=config)
+        UsBackupManager(**construct, alt_job=job).run_once()
     elif args.command == 'daemon':
-        usbackup.backup(daemon=True)
+        UsBackupManager(**construct).run_forever()
 
     sys.exit(0)

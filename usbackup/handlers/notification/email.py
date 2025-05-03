@@ -1,9 +1,9 @@
 import shlex
 import usbackup.libraries.cmd_exec as cmd_exec
-from usbackup.models.result import UsBackupResultModel
-from usbackup.handlers.notification import UsBackupHandlerBaseModel, NotificationHandler, NotificationHandlerError
+from usbackup.models.result import ResultModel
+from usbackup.handlers.notification import HandlerBaseModel, NotificationHandler, NotificationHandlerError
 
-class EmailHandlerModel(UsBackupHandlerBaseModel):
+class EmailHandlerModel(HandlerBaseModel):
     handler: str = 'email'
     sender: str
     to: list[str]
@@ -19,7 +19,7 @@ class EmailHandler(NotificationHandler):
         self._email_addresses: list[str] = model.to
         self._email_command: list = shlex.split(model.command)
 
-    async def notify(self, job_name: str, status: str, results: list[UsBackupResultModel]) -> None:
+    async def notify(self, job_name: str, status: str, results: list[ResultModel]) -> None:
         to = ", ".join(self._email_addresses)
         body = self._gen_email_body(job_name, status, results)
         subject = f'Backup status ({job_name}): backup {status}'
@@ -31,7 +31,7 @@ class EmailHandler(NotificationHandler):
         except Exception as e:
             raise NotificationHandlerError(f'Email exception: {e}', 1011)
         
-    def _gen_email_body(self, job_name: str, status: str, results: list[UsBackupResultModel]) -> str:
+    def _gen_email_body(self, job_name: str, status: str, results: list[ResultModel]) -> str:
         summary_table = ''
         details = ''
         
@@ -45,7 +45,7 @@ class EmailHandler(NotificationHandler):
                 <tr>
                     <td>{result.name}</td>
                     <td>{status_str}</td>
-                    <td>{result.elapsed_time}</td>
+                    <td>{result.elapsed}</td>
                     <td>{result.dest}</td>
                 </tr>
             '''

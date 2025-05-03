@@ -1,15 +1,15 @@
 import logging
-from usbackup.models.result import UsBackupResultModel
+from usbackup.models.result import ResultModel
 from usbackup.handlers.notification import NotificationHandler
 
-__all__ = ['UsbackupNotifier']
-class UsbackupNotifier:
+__all__ = ['NotifierService']
+class NotifierService:
     def __init__(self, handlers: list[NotificationHandler], *, logger: logging.Logger):
         self._handlers: list[NotificationHandler] = handlers
         
         self._logger: logging.Logger = logger
 
-    async def notify(self, name: str, type: str, results: list[UsBackupResultModel], *, notification_policy: str = None) -> None:
+    async def notify(self, name: str, type: str, results: list[ResultModel], *, notification_policy: str = None) -> None:
         errors = any(result.status != 'ok' for result in results)
         status = 'ok' if not errors else 'failed'
         

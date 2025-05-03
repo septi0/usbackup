@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-class UsBackupHandlerBaseModel(BaseModel):
+class HandlerBaseModel(BaseModel):
     handler: str
     
     model_config = ConfigDict(extra='forbid')

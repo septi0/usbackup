@@ -3,34 +3,41 @@ import os
 import datetime
 import usbackup.libraries.cmd_exec as cmd_exec
 from usbackup.libraries.aio_files import afwrite
-from usbackup.models.source import UsBackupSourceModel
-from usbackup.models.version import UsBackupVersionModel
+from usbackup.models.source import SourceModel
+from usbackup.models.storage import StorageModel
+from usbackup.models.host import HostModel
+from usbackup.models.handler_base import HandlerBaseModel
+from usbackup.models.version import BackupVersionModel
 
-__all__ = ['UsBackupContext']
+__all__ = ['ContextService']
 
-class UsBackupContext:
-    def __init__(self, source: UsBackupSourceModel, destination: str, *, logger: logging.Logger):
-        self._source: UsBackupSourceModel = source
-        self._destination: str = destination
-        
+class ContextService:
+    def __init__(self, source: SourceModel, storage: StorageModel, *, logger: logging.Logger):
         self._logger: logging.Logger = logger
         
         self._name: str = source.name
+        self._host: HostModel = source.host
+        self._handlers: list[HandlerBaseModel] = source.handlers
+        self._destination: str = os.path.join(storage.path, source.name)
         self._version_format: str = '%Y_%m_%d-%H_%M_%S'
-    
-    @property    
-    def source(self) -> UsBackupSourceModel:
-        return self._source
     
     @property
     def name(self) -> str:
         return self._name
     
     @property
+    def host(self) -> HostModel:
+        return self._host
+    
+    @property
+    def handlers(self) -> list[HandlerBaseModel]:
+        return self._handlers
+    
+    @property
     def destination(self) -> str:
         return self._destination
         
-    def get_versions(self) -> list[UsBackupVersionModel]:
+    def get_versions(self) -> list[BackupVersionModel]:
         versions = []
         
         # get all backup directories
@@ -46,7 +53,7 @@ class UsBackupContext:
                 # skip directories that don't match the version format
                 continue
             
-            versions.append(UsBackupVersionModel(version, version_path, version_date))
+            versions.append(BackupVersionModel(version, version_path, version_date))
             
         if not versions:
             return []
@@ -56,7 +63,7 @@ class UsBackupContext:
         
         return versions
     
-    def get_latest_version(self) -> UsBackupVersionModel:
+    def get_latest_version(self) -> BackupVersionModel:
         versions = self.get_versions()
         
         if not versions:
@@ -67,7 +74,7 @@ class UsBackupContext:
         
         return latest_version
     
-    async def generate_version(self) -> UsBackupVersionModel:
+    async def generate_version(self) -> BackupVersionModel:
         version_date = datetime.datetime.now()
         version = version_date.strftime(self._version_format)
         version_path = os.path.join(self._destination, version)
@@ -77,9 +84,9 @@ class UsBackupContext:
             self._logger.info(f'Creating version directory {version_path}')
             await cmd_exec.mkdir(version_path)
             
-        return UsBackupVersionModel(version, version_path, version_date)
+        return BackupVersionModel(version, version_path, version_date)
     
-    async def remove_version(self, version: UsBackupVersionModel) -> None:
+    async def remove_version(self, version: BackupVersionModel) -> None:
         if not os.path.exists(version.path):
             self._logger.warning(f'Version "{version}" does not exist')
             return
@@ -87,7 +94,7 @@ class UsBackupContext:
         # remove the version directory
         await cmd_exec.remove(version.path)
         
-        self._logger.info(f'Removed version "{version}"')
+        self._logger.info(f'Removed version path "{version.path}"')
         
     async def lock_file_exists(self) -> bool:
         lock_file = os.path.join(self._destination, 'backup.lock')

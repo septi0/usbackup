@@ -1,7 +1,7 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from usbackup.models.handler_base import UsBackupHandlerBaseModel
+from usbackup.models.handler_base import HandlerBaseModel
 from usbackup.models.host import HostModel
 from usbackup.libraries.cleanup_queue import CleanupQueue
 
@@ -10,7 +10,7 @@ __all__ = ['BackupHandler', 'BackupHandlerError']
 class BackupHandler(ABC):
     handler: str = None
     
-    def __init__(self, model: UsBackupHandlerBaseModel, host: HostModel, *, cleanup: CleanupQueue, logger: logging.Logger):
+    def __init__(self, model: HandlerBaseModel, host: HostModel, *, cleanup: CleanupQueue, logger: logging.Logger):
         self._host: HostModel = host
         
         self._cleanup: CleanupQueue = cleanup

@@ -1,8 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
 
-__all__ = ['UsBackupRetentionPolicyModel']
-
-class UsBackupRetentionPolicyModel(BaseModel):
+class RetentionPolicyModel(BaseModel):
     last: int = Field(None, ge=1)
     hourly: int = Field(None, ge=1)
     daily: int = Field(None, ge=1)

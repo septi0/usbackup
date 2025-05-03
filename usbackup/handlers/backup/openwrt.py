@@ -1,7 +1,7 @@
 import usbackup.libraries.cmd_exec as cmd_exec
-from usbackup.handlers.backup import UsBackupHandlerBaseModel, BackupHandler, BackupHandlerError
+from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHandlerError
 
-class OpenwrtHandlerModel(UsBackupHandlerBaseModel):
+class OpenwrtHandlerModel(HandlerBaseModel):
     handler: str = 'openwrt'
 
 class OpenwrtHandler(BackupHandler):

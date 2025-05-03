@@ -6,33 +6,34 @@ import datetime
 import asyncio
 from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.models.usbackup import UsBackupModel
-from usbackup.models.job import UsBackupJobModel
-from usbackup.models.storage import UsBackupStorageModel
-from usbackup.models.source import UsBackupSourceModel
-from usbackup.models.handler_base import UsBackupHandlerBaseModel
-from usbackup.services.job import UsBackupJob
-from usbackup.services.context import UsBackupContext
-from usbackup.services.runner import UsBackupRunner
-from usbackup.services.notifier import UsbackupNotifier
+from usbackup.models.job import JobModel
+from usbackup.models.storage import StorageModel
+from usbackup.models.source import SourceModel
+from usbackup.models.handler_base import HandlerBaseModel
+from usbackup.services.job import JobService
+from usbackup.services.context import ContextService
+from usbackup.services.notifier import NotifierService
 from usbackup.exceptions import UsbackupRuntimeError, GracefulExit
 from usbackup.handlers import handler_factory
 
 __all__ = ['UsBackupManager']
 
 class UsBackupManager:
-    def __init__(self, *, log_file: str = None, log_level: str = None, config_file: str = None, ) -> None:
+    def __init__(self, *, log_file: str = None, log_level: str = None, config_file: str = None, alt_job: dict = None) -> None:
         self._pid_filepath: str = self._gen_pid_filepath()
 
         self._logger: logging.Logger = self._logger_factory(log_file, log_level)
-        self._model: UsBackupModel = UsBackupModel(**self._load_config(config_file))
-            
+        self._model: UsBackupModel = UsBackupModel(**self._load_config(file=config_file, alt_job=alt_job))
         self._cleanup: CleanupQueue = CleanupQueue()
-        self._notifier: UsbackupNotifier = self._notifier_factory(self._model.notifiers)
+        self._notifier: NotifierService = self._notifier_factory(self._model.notifiers)
 
-    def backup(self, daemon: bool = False, config: dict = {}) -> None:
-        return self._run_main(self._run_backup, daemon=daemon, config=config)
+    def run_once(self) -> None:
+        return self._run_main(self._do_run_once)
     
-    def _load_config(self, file: str = None) -> str:
+    def run_forever(self) -> None:
+        return self._run_main(self._do_run_forever)
+    
+    def _load_config(self, *, file: str = None, alt_job: dict = None) -> str:
         config_files = [
             '/etc/usbackup/config.yml',
             '/etc/opt/usbackup/config.yml',
@@ -57,6 +58,14 @@ class UsBackupManager:
                 config = yaml.safe_load(f)
             except yaml.YAMLError as e:
                 raise UsbackupRuntimeError(f"Failed to parse config file: {e}")
+            
+        if alt_job:
+            # convert retention_policy to dict
+            if alt_job.get('retention_policy'):
+                alt_job['retention_policy'] = alt_job['retention_policy'].split(',')
+                alt_job['retention_policy'] = {k.strip(): int(v) for k, v in (x.split('=') for x in alt_job['retention_policy'])}
+                
+            config['jobs'] = [alt_job]
             
         return config
         
@@ -95,7 +104,7 @@ class UsBackupManager:
 
         return logger
     
-    def _notifier_factory(self, handler_models: list[UsBackupHandlerBaseModel]) -> UsbackupNotifier:
+    def _notifier_factory(self, handler_models: list[HandlerBaseModel]) -> NotifierService:
         if not handler_models:
             return None
         
@@ -107,9 +116,9 @@ class UsBackupManager:
 
             handlers.append(handler_factory('notification', handler_model.handler, handler_model, logger=handler_logger))
 
-        return UsbackupNotifier(handlers, logger=notifier_logger)
+        return NotifierService(handlers, logger=notifier_logger)
     
-    def _job_factory(self, model: UsBackupJobModel) -> UsBackupJob:
+    def _job_factory(self, model: JobModel) -> JobService:
         source_models = self._model.sources
         
         # filter source models
@@ -121,31 +130,8 @@ class UsBackupManager:
             
         if not source_models:
             raise UsbackupRuntimeError("No sources left to backup after limit/exclude filters")
-        
-        # find storage by job_model.dest
-        storage_model = next((storage for storage in self._model.storages if storage.name == model.dest), None)
-        
-        if not storage_model:
-            raise UsbackupRuntimeError(f'Storage "{model.dest}" not found')
-        
-        contexts = []
-        
-        for source_model in source_models:                
-            contexts.append(self._context_factory(source_model, storage_model))
 
-        return UsBackupJob(model, contexts, runner_factory=self._runner_factory, notifier=self._notifier, logger=self._logger)
-    
-    def _context_factory(self, source_model: UsBackupSourceModel, storage_model: UsBackupStorageModel) -> UsBackupContext:
-        source_name = source_model.name
-        
-        source_logger = self._logger.getChild(source_name)
-        
-        destination = os.path.join(storage_model.path, source_name)
-        
-        return UsBackupContext(source_model, destination, logger=source_logger)
-    
-    def _runner_factory(self, context: UsBackupContext, *, logger: logging.Logger) -> UsBackupRunner:
-        return UsBackupRunner(context, cleanup=self._cleanup, logger=logger)
+        return JobService(model, source_models, cleanup=self._cleanup, notifier=self._notifier, logger=self._logger)
     
     def _sigterm_handler(self) -> None:
         raise GracefulExit
@@ -201,23 +187,14 @@ class UsBackupManager:
                     'exception': task.exception(),
                     'task': task,
                 })
-
-    async def _run_backup(self, daemon: bool = False, config: dict = {}) -> None:
-        if not daemon:
-            config['name'] = 'manual'
-            config['type'] = 'backup'
-            if config.get('retention_policy'):
-                # convert retention_policy to dict
-                config['retention_policy'] = config['retention_policy'].split(',')
-                config['retention_policy'] = {k.strip(): int(v) for k, v in (x.split('=') for x in config['retention_policy'])}
                 
-            job_model = UsBackupJobModel(**config)
-                
-            job = self._job_factory(job_model)
-            
-            await job.run()
-            return
+    async def _do_run_once(self) -> None:
+        job = self._job_factory(self._model.jobs[0])
         
+        await job.run()
+        return
+
+    async def _do_run_forever(self) -> None:
         job_models = self._model.jobs
         
         if not job_models:
@@ -265,7 +242,7 @@ class UsBackupManager:
 
             await asyncio.sleep(time_left)
     
-    async def _run_due_jobs(self, jobs: list[UsBackupJob]) -> None:
+    async def _run_due_jobs(self, jobs: list[JobService]) -> None:
         tasks = []
             
         for job in jobs:

@@ -35,15 +35,17 @@ storages:
 jobs:
   - name: job1 # The name of the backup job
 
-    type: backup # Type of job to be performed. Available types: backup (replication coming soon)
+    type: backup # The type of the job. Available types: backup, replication. Default: backup
 
     dest: storage1 # Destination storage to be used when performing the job
 
+    replicate: storage2 # Source storage to read the data from when performing the replication job - required when the job type is replication, otherwise ignored
+
     schedule: 0 0 * * * # Cron schedule to be used when running the job. Default: 0 0 * * *
 
-    limit: [host1] # list of hosts for the backup job - optional (if no hosts are provided, all hosts will be included, except the ones in the exclude list)
+    limit: [host1] # list of sources for the backup job - optional (if no sources are provided, all sources will be included, except the ones in the exclude list)
 
-    exclude: [host2] # list of hosts to exclude from the backup job - optional
+    exclude: [host2] # list of sources to exclude from the backup job - optional
 
     retention_policy: # Pruning policy to be applied to versions - optional (if no policy is provided, all versions will be kept indefinitely)
       last: 3 # Number of last versions to keep (this ensures that the last N versions are kept, regardless of the other policies)
@@ -55,7 +57,7 @@ jobs:
 
     notification_policy: always # The notification policy. Available policies: always, on-failure, never. Default: always
 
-    concurrency: 1 # Number of concurrent hosts to be backed up. Default: 1
+    concurrency: 1 # Number of concurrent sources to be backed up. Default: 1
 
     pre_run_cmd: /path/to/pre_run.sh # Command to be executed before performing the job - optional
 

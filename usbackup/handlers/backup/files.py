@@ -2,9 +2,9 @@ import os
 import datetime
 import usbackup.libraries.cmd_exec as cmd_exec
 from typing import Literal
-from usbackup.handlers.backup import UsBackupHandlerBaseModel, BackupHandler, BackupHandlerError
+from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHandlerError
 
-class FilesHandlerModel(UsBackupHandlerBaseModel):
+class FilesHandlerModel(HandlerBaseModel):
     handler: str = 'files'
     limit: list[str] = []
     exclude: list[str] = []

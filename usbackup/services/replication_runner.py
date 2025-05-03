@@ -1,0 +1,46 @@
+import os
+import logging
+import datetime
+import uuid
+import io
+import usbackup.libraries.cmd_exec as cmd_exec
+from usbackup.libraries.cleanup_queue import CleanupQueue
+from usbackup.models.version import BackupVersionModel
+from usbackup.models.retention_policy import RetentionPolicyModel
+from usbackup.models.result import ResultModel
+from usbackup.services.runner import Runner
+from usbackup.services.context import ContextService
+from usbackup.exceptions import UsbackupRuntimeError
+from usbackup.handlers import handler_factory
+
+__all__ = ['Runner']
+
+class ReplicationRunner(Runner):
+    def __init__(self, context: ContextService, retention_policy: RetentionPolicyModel, *, cleanup: CleanupQueue, logger: logging.Logger) -> None:
+        super().__init__(context, retention_policy, cleanup=cleanup, logger=logger)
+        
+    async def run(self, replicate_context: ContextService) -> None:
+        run_time = datetime.datetime.now()
+        
+        if await self._context.lock_file_exists():
+            raise UsbackupRuntimeError(f'Replication already running')
+        
+        self._logger.info(f'Replication started at {run_time}')
+            
+        await self._context.create_lock_file()
+        self._cleanup.add_job(f'remove_lock_{self._id}', self._context.remove_lock_file)
+
+        error = None
+        
+        # TODO: Implement replication logic
+
+        await self._cleanup.run_job(f'remove_lock_{self._id}')
+
+        finish_time = datetime.datetime.now()
+
+        elapsed = finish_time - run_time
+        elapsed_s = elapsed.total_seconds()
+
+        self._logger.info(f'Replication finished at {finish_time}. Elapsed time: {elapsed_s:.2f} seconds')
+        
+        return ResultModel(self._context, message=self._log_stream.getvalue(), error=error, elapsed=elapsed)

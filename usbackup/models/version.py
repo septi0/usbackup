@@ -1,8 +1,6 @@
 import datetime
 
-__all__ = ['UsBackupVersionModel']
-
-class UsBackupVersionModel():
+class BackupVersionModel():
     def __init__(self, version: str, path: str, date: datetime):
         self._version: str = version
         self._path: str = path

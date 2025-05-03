@@ -2,9 +2,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from usbackup.handlers import handler_model_factory
 from usbackup.models.host import HostModel
 
-__all__ = ['UsBackupSourceModel']
-
-class UsBackupSourceModel(BaseModel):
+class SourceModel(BaseModel):
     name: str
     host: HostModel
     handlers: list

@@ -1,9 +1,9 @@
 import os
 import usbackup.libraries.cmd_exec as cmd_exec
 from typing import Literal
-from usbackup.handlers.backup import UsBackupHandlerBaseModel, BackupHandler, BackupHandlerError
+from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHandlerError
 
-class ProxmoxVmsHandlerModel(UsBackupHandlerBaseModel):
+class ProxmoxVmsHandlerModel(HandlerBaseModel):
     handler: str = 'proxmox_vms'
     limit: list[int] = []
     exclude: list[int] = []

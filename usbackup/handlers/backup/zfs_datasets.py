@@ -1,8 +1,8 @@
 import os
 import usbackup.libraries.cmd_exec as cmd_exec
-from usbackup.handlers.backup import UsBackupHandlerBaseModel, BackupHandler, BackupHandlerError
+from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHandlerError
 
-class ZfsDatasetsHandlerModel(UsBackupHandlerBaseModel):
+class ZfsDatasetsHandlerModel(HandlerBaseModel):
     handler: str = 'zfs_datasets'
     limit: list[str] = []
     exclude: list[str] = []

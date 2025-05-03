@@ -4,27 +4,34 @@ import datetime
 import shlex
 import io
 import usbackup.libraries.cmd_exec as cmd_exec
-from usbackup.models.job import UsBackupJobModel
-from usbackup.models.retention_policy import UsBackupRetentionPolicyModel
-from usbackup.models.result import UsBackupResultModel
-from usbackup.services.context import UsBackupContext
-from usbackup.services.notifier import UsbackupNotifier
+from usbackup.libraries.cleanup_queue import CleanupQueue
+from usbackup.models.job import JobModel
+from usbackup.models.retention_policy import RetentionPolicyModel
+from usbackup.models.result import ResultModel
+from usbackup.models.storage import StorageModel
+from usbackup.models.source import SourceModel
+from usbackup.services.context import ContextService
+from usbackup.services.backup_runner import BackupRunner
+from usbackup.services.replication_runner import ReplicationRunner
+from usbackup.services.notifier import NotifierService
 from usbackup.exceptions import UsbackupRuntimeError
 
-__all__ = ['UsBackupJob']
+__all__ = ['JobService']
 
-class UsBackupJob:
-    def __init__(self, job: UsBackupJobModel, contexts: list[UsBackupContext], *, runner_factory: object, notifier: UsbackupNotifier, logger: logging.Logger):
-        self._contexts: list[UsBackupContext] = contexts
+class JobService:
+    def __init__(self, job: JobModel, sources: list[SourceModel], *, cleanup: CleanupQueue, notifier: NotifierService, logger: logging.Logger):
+        self._sources: list[SourceModel] = sources
         
-        self._runner_factory: object = runner_factory
-        self._notifier: UsbackupNotifier = notifier
+        self._cleanup: CleanupQueue = cleanup
+        self._notifier: NotifierService = notifier
         self._logger: logging.Logger = logger
         
         self._name: str = job.name
         self._type: str = job.type
+        self._dest: StorageModel = job.dest
+        self._replicate: StorageModel = job.replicate
         self._schedule: str = job.schedule
-        self._retention_policy: UsBackupRetentionPolicyModel = job.retention_policy
+        self._retention_policy: RetentionPolicyModel = job.retention_policy
         self._notification_policy: str = job.notification_policy
         self._concurrency: int = job.concurrency
         self._pre_run_cmd: list = shlex.split(job.pre_run_cmd) if job.pre_run_cmd else []
@@ -46,8 +53,8 @@ class UsBackupJob:
         
         semaphore = asyncio.Semaphore((self._concurrency))
         
-        for context in self._contexts:
-            tasks.append(asyncio.create_task(self._semaphore_task_runner(context, semaphore), name=context.source.name))
+        for source in self._sources:
+            tasks.append(asyncio.create_task(self._semaphore_task_runner(source, semaphore), name=source.name))
                 
         # wait for all tasks to finish
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -56,7 +63,6 @@ class UsBackupJob:
             if isinstance(task.exception(), Exception):
                 try: raise task.exception()
                 except Exception as e: self._logger.exception(e, exc_info=True)
-                results.append(UsBackupResultModel(context, error=e))
             else:
                 results.append(task.result())
                 
@@ -69,37 +75,24 @@ class UsBackupJob:
         # handle reporting
         await self._notifier.notify(self._name, self._type, results, notification_policy=self._notification_policy)
     
-    async def _semaphore_task_runner(self, context: UsBackupContext, semaphore: asyncio.Semaphore) -> UsBackupResultModel:
+    async def _semaphore_task_runner(self, source: SourceModel, semaphore: asyncio.Semaphore) -> ResultModel:
         async with semaphore:
-            log_stream = io.StringIO()
-            logger = self._logger.getChild(context.source.name)
-            
-            stream_handler = logging.StreamHandler(log_stream)
-            stream_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
-            logger.addHandler(stream_handler)
-            
-            logger.info(f"Running {self._type} task for {context.source.name}")
-            
-            runner = self._runner_factory(context, logger=logger)
-            
-            run_time = datetime.datetime.now()
-            
-            logger.info(f'{self._type} task started at {run_time}')
+            logger = self._logger.getChild(source.name)
+            context = ContextService(source, self._dest, logger=logger)
             
             try:
-                elapsed = await runner.backup(self._retention_policy)
+                if self._type == 'backup':
+                    runner = BackupRunner(context, self._retention_policy, cleanup=self._cleanup, logger=logger)
+                    
+                    return await runner.run()
+                elif self._type == 'replication':
+                    runner = ReplicationRunner(context, self._retention_policy, cleanup=self._cleanup, logger=logger)
+                    
+                    replicate_context = ContextService(source, self._replicate, logger=logger)
+                    return await runner.run(replicate_context)
             except Exception as e:
-                logger.exception(e, exc_info=True)
-                return UsBackupResultModel(context, message=log_stream.getvalue(), error=e)
-
-            finish_time = datetime.datetime.now()
-
-            elapsed_time = finish_time - run_time
-            elapsed_time_s = elapsed_time.total_seconds()
-
-            logger.info(f'{self._type} task at {finish_time}. Elapsed time: {elapsed_time_s:.2f} seconds')
-
-            return UsBackupResultModel(context, message=log_stream.getvalue(), elapsed_time=elapsed)
+                self._logger.exception(e, exc_info=True)
+                return ResultModel(context, error=e)
     
     def is_job_due(self) -> bool:
         cron_schedule = self._schedule

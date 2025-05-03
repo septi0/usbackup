@@ -20,7 +20,7 @@ class HostModel(BaseModel, CmdExecHostModel):
     
     @model_validator(mode='before')
     @classmethod
-    def validate_handler(cls, values):
+    def validate(cls, values):
         if not isinstance(values, str):
             raise ValueError('Invalid remote string provided')
         
