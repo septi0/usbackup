@@ -6,7 +6,8 @@ __all__ = ['UsBackupJobModel']
     
 class UsBackupJobModel(BaseModel):
     name: str
-    type: Literal['backup', 'replication']
+    type: Literal['backup'] = 'backup'
+    dest: str
     limit: list[str] = []
     exclude: list[str] = []
     schedule: str = Field('0 0 * * *', pattern=r'^(\*|(\d+|\*\/\d+|\d+-\d+|\d+(,\d+)*))(\s+(\*|(\d+|\*\/\d+|\d+-\d+|\d+(,\d+)*))){4}$')

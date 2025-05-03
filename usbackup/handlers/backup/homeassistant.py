@@ -1,7 +1,6 @@
 import os
 import json
 import usbackup.libraries.cmd_exec as cmd_exec
-from usbackup.models.remote import RemoteModel
 from usbackup.handlers.backup import UsBackupHandlerBaseModel, BackupHandler, BackupHandlerError
 
 class HomeassistantHandlerModel(UsBackupHandlerBaseModel):
@@ -10,10 +9,8 @@ class HomeassistantHandlerModel(UsBackupHandlerBaseModel):
 class HomeassistantHandler(BackupHandler):
     handler: str = 'homeassistant'
 
-    def __init__(self, host: RemoteModel, model: HomeassistantHandlerModel, *args, **kwargs) -> None:
-        super().__init__(host, model, *args, **kwargs)
-        
-        self._host: RemoteModel = host
+    def __init__(self, model: HomeassistantHandlerModel, *args, **kwargs) -> None:
+        super().__init__(model, *args, **kwargs)
 
     async def backup(self, dest: str, dest_link: str = None) -> None:
         self._logger.info(f'Generating backup archive on "{self._host}"')

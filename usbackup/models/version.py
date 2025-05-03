@@ -3,9 +3,9 @@ import datetime
 __all__ = ['UsBackupVersionModel']
 
 class UsBackupVersionModel():
-    def __init__(self, version: str, full_path: str, date: datetime):
-        self._version = version
-        self._full_path = full_path
+    def __init__(self, version: str, path: str, date: datetime):
+        self._version: str = version
+        self._path: str = path
         self._date = date
         
     @property
@@ -13,12 +13,12 @@ class UsBackupVersionModel():
         return self._version
     
     @property
-    def full_path(self) -> str:
-        return self._full_path
+    def path(self) -> str:
+        return self._path
     
     @property
     def date(self) -> datetime:
         return self._date
     
     def __str__(self) -> str:
-        return f'{self._version} ({self._date})'
+        return self._version

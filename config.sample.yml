@@ -1,9 +1,7 @@
-hosts:
+sources:
   - name: host1 # The name of the host to be backed up
 
     host: user:password@host1:port # Hostname of the remote host (use 'localhost' for local backups)
-
-    dest: /path/to/host1/backup # Destination path to be used when performing the backup
 
     handlers:
     - handler: files # enable Files backup
@@ -29,10 +27,17 @@ hosts:
       exclude: [vm3] # list of VMs to exclude from the backup - optional
       bwlimit: # limit the bandwidth - optional
 
+storages:
+  - name: storage1 # The name of the storage to be used
+
+    path: /path/to/storage1 # Path to the storage to be used
+
 jobs:
   - name: job1 # The name of the backup job
 
-    type: backup # Type of job to be performed. Available types: backup, replication
+    type: backup # Type of job to be performed. Available types: backup (replication coming soon)
+
+    dest: storage1 # Destination storage to be used when performing the job
 
     schedule: 0 0 * * * # Cron schedule to be used when running the job. Default: 0 0 * * *
 

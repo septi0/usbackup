@@ -2,44 +2,43 @@ import logging
 import asyncio
 import datetime
 import shlex
+import io
 import usbackup.libraries.cmd_exec as cmd_exec
 from usbackup.models.job import UsBackupJobModel
 from usbackup.models.retention_policy import UsBackupRetentionPolicyModel
 from usbackup.models.result import UsBackupResultModel
-from usbackup.services.host import UsBackupHost
+from usbackup.services.context import UsBackupContext
 from usbackup.services.notifier import UsbackupNotifier
 from usbackup.exceptions import UsbackupRuntimeError
 
 __all__ = ['UsBackupJob']
 
-
 class UsBackupJob:
-    def __init__(self, model: UsBackupJobModel, *, hosts: list[UsBackupHost], notifier: UsbackupNotifier, logger: logging.Logger):
-        self._name: str = model.name
-        self._type: str = model.type
-        self._schedule: str = model.schedule
-        self._retention_policy: UsBackupRetentionPolicyModel = model.retention_policy
-        self._notification_policy: str = model.notification_policy
-        self._concurrency: int = model.concurrency
-        self._pre_run_cmd: list = shlex.split(model.pre_run_cmd) if model.pre_run_cmd else []
-        self._post_run_cmd: list = shlex.split(model.post_run_cmd) if model.post_run_cmd else []
+    def __init__(self, job: UsBackupJobModel, contexts: list[UsBackupContext], *, runner_factory: object, notifier: UsbackupNotifier, logger: logging.Logger):
+        self._contexts: list[UsBackupContext] = contexts
         
-        self._hosts: list[UsBackupHost] = hosts
-        
+        self._runner_factory: object = runner_factory
         self._notifier: UsbackupNotifier = notifier
         self._logger: logging.Logger = logger
+        
+        self._name: str = job.name
+        self._type: str = job.type
+        self._schedule: str = job.schedule
+        self._retention_policy: UsBackupRetentionPolicyModel = job.retention_policy
+        self._notification_policy: str = job.notification_policy
+        self._concurrency: int = job.concurrency
+        self._pre_run_cmd: list = shlex.split(job.pre_run_cmd) if job.pre_run_cmd else []
+        self._post_run_cmd: list = shlex.split(job.post_run_cmd) if job.post_run_cmd else []
 
     @property
     def name(self) -> str:
         return self._name
-    
-    @property
-    def hosts(self) -> list[UsBackupHost]:
-        return self._hosts
         
     async def run(self) -> None:
         tasks = []
         results = []
+        
+        self._logger.info(f'Starting {self._type} job "{self._name}"')
         
         if self._pre_run_cmd:
             self._logger.info(f"Running pre run command")
@@ -47,16 +46,17 @@ class UsBackupJob:
         
         semaphore = asyncio.Semaphore((self._concurrency))
         
-        for host in self._hosts:
-            tasks.append(asyncio.create_task(self._semaphore_worker(host, semaphore=semaphore), name=host.name))
+        for context in self._contexts:
+            tasks.append(asyncio.create_task(self._semaphore_task_runner(context, semaphore), name=context.source.name))
                 
         # wait for all tasks to finish
         await asyncio.gather(*tasks, return_exceptions=True)
         
         for task in tasks:
             if isinstance(task.exception(), Exception):
-                self._logger.exception(task.exception(), exc_info=True)
-                results.append(UsBackupResultModel(task.get_name(), error=task.exception()))
+                try: raise task.exception()
+                except Exception as e: self._logger.exception(e, exc_info=True)
+                results.append(UsBackupResultModel(context, error=e))
             else:
                 results.append(task.result())
                 
@@ -64,20 +64,42 @@ class UsBackupJob:
             self._logger.info(f"Running post run command")
             await cmd_exec.exec_cmd(self._post_run_cmd)
                 
-        self._logger.info(f"Backup finished for host {str(host)}")
+        self._logger.info(f'{self._type} job "{self._name}" finished')
         
         # handle reporting
         await self._notifier.notify(self._name, self._type, results, notification_policy=self._notification_policy)
     
-    async def _semaphore_worker(self, host: UsBackupHost, *, semaphore: asyncio.Semaphore) -> UsBackupResultModel:
+    async def _semaphore_task_runner(self, context: UsBackupContext, semaphore: asyncio.Semaphore) -> UsBackupResultModel:
         async with semaphore:
-            self._logger.info(f"Running backup for host {host.name}")
+            log_stream = io.StringIO()
+            logger = self._logger.getChild(context.source.name)
             
-            result = await host.backup(self._retention_policy)
+            stream_handler = logging.StreamHandler(log_stream)
+            stream_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+            logger.addHandler(stream_handler)
             
+            logger.info(f"Running {self._type} task for {context.source.name}")
             
+            runner = self._runner_factory(context, logger=logger)
             
-            return result
+            run_time = datetime.datetime.now()
+            
+            logger.info(f'{self._type} task started at {run_time}')
+            
+            try:
+                elapsed = await runner.backup(self._retention_policy)
+            except Exception as e:
+                logger.exception(e, exc_info=True)
+                return UsBackupResultModel(context, message=log_stream.getvalue(), error=e)
+
+            finish_time = datetime.datetime.now()
+
+            elapsed_time = finish_time - run_time
+            elapsed_time_s = elapsed_time.total_seconds()
+
+            logger.info(f'{self._type} task at {finish_time}. Elapsed time: {elapsed_time_s:.2f} seconds')
+
+            return UsBackupResultModel(context, message=log_stream.getvalue(), elapsed_time=elapsed)
     
     def is_job_due(self) -> bool:
         cron_schedule = self._schedule

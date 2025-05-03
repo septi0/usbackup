@@ -7,10 +7,12 @@ import asyncio
 from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.models.usbackup import UsBackupModel
 from usbackup.models.job import UsBackupJobModel
-from usbackup.models.host import UsBackupHostModel
+from usbackup.models.storage import UsBackupStorageModel
+from usbackup.models.source import UsBackupSourceModel
 from usbackup.models.handler_base import UsBackupHandlerBaseModel
-from usbackup.services.host import UsBackupHost
 from usbackup.services.job import UsBackupJob
+from usbackup.services.context import UsBackupContext
+from usbackup.services.runner import UsBackupRunner
 from usbackup.services.notifier import UsbackupNotifier
 from usbackup.exceptions import UsbackupRuntimeError, GracefulExit
 from usbackup.handlers import handler_factory
@@ -93,49 +95,57 @@ class UsBackupManager:
 
         return logger
     
-    def _notifier_factory(self, handlers_models: list[UsBackupHandlerBaseModel]) -> UsbackupNotifier:
-        if not handlers_models:
+    def _notifier_factory(self, handler_models: list[UsBackupHandlerBaseModel]) -> UsbackupNotifier:
+        if not handler_models:
             return None
         
         notifier_logger = self._logger.getChild('notifier')
         handlers = []
 
-        for handler_model in handlers_models:
+        for handler_model in handler_models:
             handler_logger = notifier_logger.getChild(handler_model.handler)
-            handler_class = handler_factory('notification', name=handler_model.handler, entity='handler')
 
-            handlers.append(handler_class(handler_model, logger=handler_logger))
+            handlers.append(handler_factory('notification', handler_model.handler, handler_model, logger=handler_logger))
 
         return UsbackupNotifier(handlers, logger=notifier_logger)
     
-    def _backup_job_factory(self, job_model: UsBackupJobModel) -> UsBackupJob:
-        host_models = self._model.hosts
+    def _job_factory(self, model: UsBackupJobModel) -> UsBackupJob:
+        source_models = self._model.sources
         
-        # filter host models
-        if job_model.limit:
-            host_models = [host for host in host_models if host.name in job_model.limit]
+        # filter source models
+        if model.limit:
+            source_models = [source for source in source_models if source.name in model.limit]
         
-        if job_model.exclude:
-            host_models = [host for host in host_models if host.name not in job_model.exclude]
+        if model.exclude:
+            source_models = [source for source in source_models if source.name not in model.exclude]
             
-        if not host_models:
-            raise UsbackupRuntimeError("No hosts left to backup after limit/exclude filters")
-            
-        hosts = []
+        if not source_models:
+            raise UsbackupRuntimeError("No sources left to backup after limit/exclude filters")
         
-        for host_model in host_models:                
-            hosts.append(self._backup_host_factory(host_model))
-            
-        logger = self._logger.getChild(job_model.name)
-            
-        return UsBackupJob(job_model, hosts=hosts, notifier=self._notifier, logger=logger)
+        # find storage by job_model.dest
+        storage_model = next((storage for storage in self._model.storages if storage.name == model.dest), None)
+        
+        if not storage_model:
+            raise UsbackupRuntimeError(f'Storage "{model.dest}" not found')
+        
+        contexts = []
+        
+        for source_model in source_models:                
+            contexts.append(self._context_factory(source_model, storage_model))
+
+        return UsBackupJob(model, contexts, runner_factory=self._runner_factory, notifier=self._notifier, logger=self._logger)
     
-    def _backup_host_factory(self, host_model: UsBackupHostModel) -> UsBackupHost:
-        host_name = host_model.name
+    def _context_factory(self, source_model: UsBackupSourceModel, storage_model: UsBackupStorageModel) -> UsBackupContext:
+        source_name = source_model.name
         
-        host_logger = self._logger.getChild(host_name)
+        source_logger = self._logger.getChild(source_name)
         
-        return UsBackupHost(host_model, cleanup=self._cleanup, logger=host_logger)
+        destination = os.path.join(storage_model.path, source_name)
+        
+        return UsBackupContext(source_model, destination, logger=source_logger)
+    
+    def _runner_factory(self, context: UsBackupContext, *, logger: logging.Logger) -> UsBackupRunner:
+        return UsBackupRunner(context, cleanup=self._cleanup, logger=logger)
     
     def _sigterm_handler(self) -> None:
         raise GracefulExit
@@ -203,21 +213,21 @@ class UsBackupManager:
                 
             job_model = UsBackupJobModel(**config)
                 
-            backup_job = self._backup_job_factory(job_model)
+            job = self._job_factory(job_model)
             
-            await backup_job.run()
+            await job.run()
             return
         
-        jobs_models = self._model.jobs
+        job_models = self._model.jobs
         
-        if not jobs_models:
+        if not job_models:
             self._logger.error("No jobs found in config")
             return
         
-        backup_jobs = []
+        jobs = []
         
-        for job_config in jobs_models:
-            backup_jobs.append(self._backup_job_factory(job_config))
+        for job_model in job_models:
+            jobs.append(self._job_factory(job_model))
         
         # run as service
         pid = str(os.getpid())
@@ -238,7 +248,7 @@ class UsBackupManager:
 
         # run every minute
         while True:
-            asyncio.create_task(self._run_due_jobs(backup_jobs))
+            asyncio.create_task(self._run_due_jobs(jobs))
 
             # calculate the next scheduled run_time for the service
             service_run_time += datetime.timedelta(minutes=1)
@@ -255,10 +265,10 @@ class UsBackupManager:
 
             await asyncio.sleep(time_left)
     
-    async def _run_due_jobs(self, backup_jobs: list[UsBackupJob]) -> None:
+    async def _run_due_jobs(self, jobs: list[UsBackupJob]) -> None:
         tasks = []
             
-        for job in backup_jobs:
+        for job in jobs:
             if job.is_job_due():
                 self._logger.info(f"Job {job.name} is due. Running it")
                 tasks.append(asyncio.create_task(job.run(), name=job.name))

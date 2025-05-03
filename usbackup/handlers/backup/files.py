@@ -3,7 +3,6 @@ import datetime
 import usbackup.libraries.cmd_exec as cmd_exec
 from typing import Literal
 from usbackup.handlers.backup import UsBackupHandlerBaseModel, BackupHandler, BackupHandlerError
-from usbackup.models.remote import RemoteModel
 
 class FilesHandlerModel(UsBackupHandlerBaseModel):
     handler: str = 'files'
@@ -15,10 +14,8 @@ class FilesHandlerModel(UsBackupHandlerBaseModel):
 class FilesHandler(BackupHandler):
     handler: str = 'files'
     
-    def __init__(self, host: RemoteModel, model: FilesHandlerModel, *args, **kwargs) -> None:
-        super().__init__(host, model, *args, **kwargs)
-        
-        self._host: RemoteModel = host
+    def __init__(self, model: FilesHandlerModel, *args, **kwargs) -> None:
+        super().__init__(model, *args, **kwargs)
         
         self._src_paths: list[str] = self._gen_backup_src(model.limit)
         self._exclude: list[str] = model.exclude

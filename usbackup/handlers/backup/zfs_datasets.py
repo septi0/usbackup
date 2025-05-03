@@ -1,6 +1,5 @@
 import os
 import usbackup.libraries.cmd_exec as cmd_exec
-from usbackup.models.remote import RemoteModel
 from usbackup.handlers.backup import UsBackupHandlerBaseModel, BackupHandler, BackupHandlerError
 
 class ZfsDatasetsHandlerModel(UsBackupHandlerBaseModel):
@@ -11,10 +10,8 @@ class ZfsDatasetsHandlerModel(UsBackupHandlerBaseModel):
 class ZfsDatasetsHandler(BackupHandler):
     handler: str = 'zfs_datasets'
     
-    def __init__(self, host: RemoteModel, model: ZfsDatasetsHandlerModel, *args, **kwargs) -> None:
-        super().__init__(host, model, *args, **kwargs)
-        
-        self._host: RemoteModel = host
+    def __init__(self, model: ZfsDatasetsHandlerModel, *args, **kwargs) -> None:
+        super().__init__(model, *args, **kwargs)
         
         self._limit: list[str] = model.limit
         self._exclude: list[str] = model.exclude

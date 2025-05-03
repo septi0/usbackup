@@ -1,5 +1,4 @@
 import usbackup.libraries.cmd_exec as cmd_exec
-from usbackup.models.remote import RemoteModel
 from usbackup.handlers.backup import UsBackupHandlerBaseModel, BackupHandler, BackupHandlerError
 
 class TruenasHandlerModel(UsBackupHandlerBaseModel):
@@ -8,10 +7,8 @@ class TruenasHandlerModel(UsBackupHandlerBaseModel):
 class TruenasHandler(BackupHandler):
     handler: str = 'truenas'
     
-    def __init__(self, host: RemoteModel, model: TruenasHandlerModel, *args, **kwargs) -> None:
-        super().__init__(host, model, *args, **kwargs)
-        
-        self._host: RemoteModel = host
+    def __init__(self, model: TruenasHandlerModel, *args, **kwargs) -> None:
+        super().__init__(model, *args, **kwargs)
 
     async def backup(self, dest: str, dest_link: str = None) -> None:
         self._logger.info(f'Copying config files from "{self._host}" to "{dest}"')

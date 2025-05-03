@@ -1,5 +1,4 @@
 import logging
-from usbackup.models.handler_base import UsBackupHandlerBaseModel
 from usbackup.models.result import UsBackupResultModel
 from usbackup.handlers.notification import NotificationHandler
 

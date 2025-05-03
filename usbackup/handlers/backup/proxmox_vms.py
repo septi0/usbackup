@@ -1,7 +1,6 @@
 import os
 import usbackup.libraries.cmd_exec as cmd_exec
 from typing import Literal
-from usbackup.models.remote import RemoteModel
 from usbackup.handlers.backup import UsBackupHandlerBaseModel, BackupHandler, BackupHandlerError
 
 class ProxmoxVmsHandlerModel(UsBackupHandlerBaseModel):
@@ -15,10 +14,8 @@ class ProxmoxVmsHandlerModel(UsBackupHandlerBaseModel):
 class ProxmoxVmsHandler(BackupHandler):
     handler: str = 'proxmox_vms'
     
-    def __init__(self, host: RemoteModel, model: ProxmoxVmsHandlerModel, *args, **kwargs) -> None:
-        super().__init__(host, model, *args, **kwargs)
-        
-        self._host: RemoteModel = host
+    def __init__(self, model: ProxmoxVmsHandlerModel, *args, **kwargs) -> None:
+        super().__init__(model, *args, **kwargs)
         
         self._limit: list[int] = model.limit
         self._exclude: list[int] = model.exclude

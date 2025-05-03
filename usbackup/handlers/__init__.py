@@ -1,10 +1,10 @@
 import importlib
 
-__all__ = ['handler_factory']
+__all__ = ['handler_factory', 'handler_model_factory']
 
 _class_cache = {}
 
-def handler_factory(submodule: str, *, name: str, entity: str = 'handler'):
+def dynamic_loader(submodule: str, name: str, entity: str = 'handler'):
     cache_key = name + entity
     if cache_key in _class_cache:
         return _class_cache[cache_key]
@@ -31,3 +31,13 @@ def handler_factory(submodule: str, *, name: str, entity: str = 'handler'):
     _class_cache[cache_key] = obj_class
     
     return obj_class
+
+def handler_factory(submodule: str, name: str, *args, **kwargs):
+    obj_class = dynamic_loader(submodule, name)
+    
+    return obj_class(*args, **kwargs)
+
+def handler_model_factory(submodule: str, name: str, *args, **kwargs):
+    obj_class = dynamic_loader(submodule, name, 'model')
+    
+    return obj_class(*args, **kwargs)
