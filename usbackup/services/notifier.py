@@ -26,6 +26,6 @@ class NotifierService:
         for handler in self._handlers:
             try:
                 self._logger.info(f'Sending notification via "{handler.handler}" handler')
-                await handler.notify(name, status, results)
+                await handler.notify(name, type, status, results)
             except Exception as e:
                 self._logger.error(f"Failed to send notification via {handler.handler}: {e}")

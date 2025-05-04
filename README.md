@@ -10,6 +10,8 @@ Replication is also supported, allowing you to replicate existing backups to oth
 
 Files can be backed up from local storage or from remote storage, also they can be backed up using incremental, full or archive mode. (The first one being the most efficient in terms of space and time)
 
+The recommended way to configure hosts is to use ssh keys. Passwords are supported but not recommended as they will be stored as plain text in the configuration file.
+
 **WARNING!** If using UsBackup prior to version 2.0, please note that the configuration file format and backup directories structure have changed and they are not compatible with versions 1.x and 0.x. Please check the `config.sample.yml` file for the new format and migrate your configuration file accordingly.
 Version 1.x is still available in the `legacy` branch.
 

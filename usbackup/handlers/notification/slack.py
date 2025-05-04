@@ -18,7 +18,7 @@ class SlackHandler(NotificationHandler):
         
         self._slack_api_url = 'https://slack.com/api/files.upload'
 
-    async def notify(self, job_name: str, status: str, results: list[ResultModel]) -> None:
+    async def notify(self, job_name: str, job_type: str, status: str, results: list[ResultModel]) -> None:
         details = [res.message for res in results if res.message]
         details = "\n".join(details)
 
@@ -28,8 +28,8 @@ class SlackHandler(NotificationHandler):
 
         params = {
             'channels': self._slack_channel,
-            'filename': 'backup_report.log',
-            'initial_comment': f'*Backup status ({job_name}): backup {status}*',
+            'filename': 'report.log',
+            'initial_comment': f'*{job_type.capitalize()} status ({job_name}): {status}*',
         }
 
         files = {

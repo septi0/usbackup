@@ -15,7 +15,7 @@ class NotificationHandler(ABC):
         self._id: str = str(uuid.uuid4())
 
     @abstractmethod
-    async def notify(self, job_name: str, status: str, results: list[ResultModel]) -> None:
+    async def notify(self, job_name: str, job_type: str, status: str, results: list[ResultModel]) -> None:
         pass
 
 class NotificationHandlerError(Exception):

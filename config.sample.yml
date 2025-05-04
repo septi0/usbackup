@@ -1,7 +1,7 @@
 sources:
   - name: host1 # The name of the host to be backed up
 
-    host: user:password@host1:port # Hostname of the remote host (use 'localhost' for local backups)
+    host: user:password@host1:port # Hostname of the remote host (use 'localhost' for local backups). Note: Providing the password is supported but HIGHLY discouraged. Use SSH keys instead.
 
     handlers:
     - handler: files # enable Files backup

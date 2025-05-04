@@ -19,10 +19,10 @@ class EmailHandler(NotificationHandler):
         self._email_addresses: list[str] = model.to
         self._email_command: list = shlex.split(model.command)
 
-    async def notify(self, job_name: str, status: str, results: list[ResultModel]) -> None:
+    async def notify(self, job_name: str, job_type: str, status: str, results: list[ResultModel]) -> None:
         to = ", ".join(self._email_addresses)
-        body = self._gen_email_body(job_name, status, results)
-        subject = f'Backup status ({job_name}): backup {status}'
+        body = self._gen_email_body(job_name, job_type, status, results)
+        subject = f'{job_type.capitalize()} status ({job_name}): {status}'
 
         message = f'From: {self._from_address}\nTo: {to}\nSubject: {subject}\nMIME-Version: 1.0\nContent-Type: text/html; charset=UTF-8\n\n{body}'
 
@@ -31,7 +31,7 @@ class EmailHandler(NotificationHandler):
         except Exception as e:
             raise NotificationHandlerError(f'Email exception: {e}', 1011)
         
-    def _gen_email_body(self, job_name: str, status: str, results: list[ResultModel]) -> str:
+    def _gen_email_body(self, job_name: str, job_type: str, status: str, results: list[ResultModel]) -> str:
         summary_table = ''
         details = ''
         
@@ -58,7 +58,7 @@ class EmailHandler(NotificationHandler):
         content = f'''
         <html>
             <body>
-                <p>Backup job "{job_name}" finished with status "{status}".</p>
+                <p>{job_type.capitalize()} job "{job_name}" finished with status "{status}".</p>
                 <h3>Summary</h3>
                 <table border="1" cellpadding="5" cellspacing="0">
                     <thead>
