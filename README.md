@@ -4,7 +4,9 @@
 
 **UsBackup** is a backup software that allows files, datasets, vms, configs to be backed up in pull mode (via ssh). It is designed to run as a background process and to be as simple as possible.
 
-It features a simple configuration file that allows you to configure different hosts, hosts jobs, the backup sources and the backup destinations. It also features a simple reporting system that can send reports via various handlers after the backup is finished.
+It features a simple configuration file that allows you to configure different sources, storages and jobs. It also features a simple reporting system that can send reports via various handlers after the backup is finished.
+
+Replication is also supported, allowing you to replicate existing backups to other locations. This is useful for offsite backups or as a part of the 3-2-1 backup strategy.
 
 Files can be backed up from local storage or from remote storage, also they can be backed up using incremental, full or archive mode. (The first one being the most efficient in terms of space and time)
 
@@ -13,22 +15,18 @@ Version 1.x is still available in the `legacy` branch.
 
 ## Features
 
-- Backup files
+- Backup files (incremental, full, archive)
 - Backup OpenWRT config
 - Backup Truenas config
 - Backup ZFS datasets
 - Backup Home Assistant config
 - Backup Proxmox VMs
-- Backup from local host
-- Backup from remote host
-- Backup to local host
-- Host configuration
-- Hosts jobs configuration
-- Full backup
-- Incremental backup
-- Archive backup
-- Email reporting
-- Slack reporting
+- Remote or local sources
+- Replication to local or remote hosts
+- Source configuration
+- Storage configuration
+- Job configuration
+- Notification configuration
 - Pre / post backup commands
 
 ## Software requirements

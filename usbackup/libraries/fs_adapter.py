@@ -73,7 +73,6 @@ class FsAdapter:
         
         cmd_options = CmdExec.parse_cmd_options(options)
         cmd_prefix = []
-        
         src_path = src.path
         dst_path = dst.path
         remote = None
@@ -84,7 +83,7 @@ class FsAdapter:
         elif not dst.host.local:
             dst_path = f'{dst.host.user}@{dst.host.host}:{dst_path}'
             remote = dst.host
-          
+
         if remote:
             ssh_opts = []
             
@@ -98,6 +97,8 @@ class FsAdapter:
 
             if ssh_opts:
                 cmd_options += ['--rsh', f'ssh {" ".join(ssh_opts)}']
+                
+        cmd_options += ['--out-format', "%t %i %f", "--stats"]
 
         return await CmdExec.exec([*cmd_prefix, "rsync", *cmd_options, src_path, dst_path])
     

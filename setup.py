@@ -26,8 +26,12 @@ setup(
     install_requires=requirements,
     packages=[
         'usbackup',
-        'usbackup.backup_handlers',
-        'usbackup.report_handlers',
+        'usbackup.handlers',
+        'usbackup.handlers.backup',
+        'usbackup.handlers.notification',
+        'usbackup.libraries',
+        'usbackup.models',
+        'usbackup.services',
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

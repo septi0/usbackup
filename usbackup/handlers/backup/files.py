@@ -67,11 +67,7 @@ class FilesHandler(BackupHandler):
                 'hard-links',
                 'acls',
                 'xattrs',
-                'delete',
-                'delete-during',
-                'stats',
                 'relative',
-                ('out-format', "%t %i %f"),
             ]
 
             if self._exclude:

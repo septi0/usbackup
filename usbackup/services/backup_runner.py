@@ -29,6 +29,8 @@ class BackupRunner(Runner):
         
         self._logger.info(f'Backup started at {run_time}')
         
+        await self._context.ensure_destination()
+        
         latest_version = await self._context.get_latest_version()
         version = await self._context.generate_version()
             
