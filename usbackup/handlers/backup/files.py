@@ -1,7 +1,10 @@
 import os
 import datetime
-import usbackup.libraries.cmd_exec as cmd_exec
 from typing import Literal
+from usbackup.libraries.cmd_exec import CmdExec
+from usbackup.libraries.fs_adapter import FsAdapter
+from usbackup.models.path import PathModel
+from usbackup.models.host import HostModel
 from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHandlerError
 
 class FilesHandlerModel(HandlerBaseModel):
@@ -17,12 +20,12 @@ class FilesHandler(BackupHandler):
     def __init__(self, model: FilesHandlerModel, *args, **kwargs) -> None:
         super().__init__(model, *args, **kwargs)
         
-        self._src_paths: list[str] = self._gen_backup_src(model.limit)
+        self._src_paths: list[PathModel] = self._gen_backup_src(model.limit, self._host)
         self._exclude: list[str] = model.exclude
         self._bwlimit: str = model.bwlimit
         self._mode: str = model.mode
 
-    async def backup(self, dest: str, dest_link: str = None) -> list:
+    async def backup(self, dest: PathModel, dest_link: PathModel = None) -> list:
         if self._mode == 'incremental':
             self._logger.info('Using incremental backup mode')
 
@@ -38,7 +41,7 @@ class FilesHandler(BackupHandler):
         else:
             raise BackupHandlerError('Invalid backup mode', 1030)
     
-    def _gen_backup_src(self, limit: list) -> list[str]:
+    def _gen_backup_src(self, limit: list, host: HostModel) -> list[PathModel]:
         src_paths = []
 
         if limit:
@@ -51,14 +54,14 @@ class FilesHandler(BackupHandler):
                 if not src.endswith('/'):
                     src += '/'
 
-                src_paths.append(src)
+                src_paths.append(PathModel(path=src, host=host))
         else:
-            src_paths = ['/']
+            src_paths = [PathModel(path='/', host=host)]
 
         return src_paths
     
-    async def _backup_rsync(self, dest: str, dest_link: str) -> None:
-        for dir_src in self._src_paths:
+    async def _backup_rsync(self, dest: PathModel, dest_link: PathModel = None) -> None:
+        for src in self._src_paths:
             options = [
                 'archive',
                 'hard-links',
@@ -79,12 +82,12 @@ class FilesHandler(BackupHandler):
                 options.append(('bwlimit', str(self._bwlimit)))
 
             if dest_link:
-                options.append(('link-dest', dest_link))
+                options.append(('link-dest', dest_link.path))
 
-            self._logger.info(f'Copying "{dir_src}" from "{self._host}" to "{dest}"')
+            self._logger.info(f'Copying "{src}" to "{dest.path}"')
             start_time = datetime.datetime.now()
             
-            stats = await cmd_exec.rsync(dir_src, dest, host=self._host, options=options)
+            stats = await FsAdapter.rsync(src, dest, options=options)
             
             self._logger.debug(stats)
             
@@ -92,23 +95,18 @@ class FilesHandler(BackupHandler):
             elapsed_time = end_time - start_time
             elapsed_time_s = elapsed_time.total_seconds()
             
-            self._logger.info(f'Finished copying "{dir_src}" from "{self._host}" in {elapsed_time_s:.2f} seconds')
+            self._logger.info(f'Finished copying "{src}" in {elapsed_time_s:.2f} seconds')
     
-    async def _backup_tar(self, dest: str) -> None:
-        destination_archive = os.path.join(dest, f'{self._host}.tar.gz')
+    async def _backup_tar(self, dest: PathModel) -> None:
         sources = []
 
         for src in self._src_paths:
-            if not self._host.local:
-                raise BackupHandlerError('Archive mode does not support remote backup', 1032)
-
-            sources.append(src)
+            sources.append(src.path)
 
         if not sources:
             raise BackupHandlerError('No sources to archive', 1033)
         
-        self._logger.info(f'Archiving "{sources}" to "{destination_archive}"')
-
-        stats = await cmd_exec.tar(destination_archive, sources)
-
-        self._logger.debug(stats)
+        async with FsAdapter.open(dest.join('archive.tar.gz'), 'wb') as f:
+            self._logger.info(f'Streaming archive from "{self._host}" to "{dest.path}"')
+            
+            await CmdExec.exec(['tar', 'czf', '-', *sources], host=self._host, stdout=f)

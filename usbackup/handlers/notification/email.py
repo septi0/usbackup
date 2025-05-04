@@ -1,5 +1,5 @@
 import shlex
-import usbackup.libraries.cmd_exec as cmd_exec
+from usbackup.libraries.cmd_exec import CmdExec
 from usbackup.models.result import ResultModel
 from usbackup.handlers.notification import HandlerBaseModel, NotificationHandler, NotificationHandlerError
 
@@ -27,7 +27,7 @@ class EmailHandler(NotificationHandler):
         message = f'From: {self._from_address}\nTo: {to}\nSubject: {subject}\nMIME-Version: 1.0\nContent-Type: text/html; charset=UTF-8\n\n{body}'
 
         try:
-            await cmd_exec.exec_cmd(self._email_command, input=message)
+            await CmdExec.exec(self._email_command, input=message)
         except Exception as e:
             raise NotificationHandlerError(f'Email exception: {e}', 1011)
         

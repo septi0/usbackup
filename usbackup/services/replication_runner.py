@@ -1,17 +1,12 @@
-import os
 import logging
 import datetime
-import uuid
 import io
-import usbackup.libraries.cmd_exec as cmd_exec
 from usbackup.libraries.cleanup_queue import CleanupQueue
-from usbackup.models.version import BackupVersionModel
 from usbackup.models.retention_policy import RetentionPolicyModel
 from usbackup.models.result import ResultModel
 from usbackup.services.runner import Runner
 from usbackup.services.context import ContextService
 from usbackup.exceptions import UsbackupRuntimeError
-from usbackup.handlers import handler_factory
 
 __all__ = ['Runner']
 

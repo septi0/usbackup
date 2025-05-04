@@ -49,7 +49,10 @@ class UsBackupModel(BaseModel):
             if not values.jobs[i].dest:
                 raise ValueError(f'Job "{job.name}" has inexistent destination storage')
             
-            if job.replicate:
+            if job.type == 'backup':
+                if not values.jobs[i].dest.path.host.local:
+                    raise ValueError(f'Backup jobs only support local storage')
+            elif job.type == 'replicate':
                 values.jobs[i].replicate = next((storage for storage in values.storages if storage.name == job.replicate), None)
                 
                 if not values.jobs[i].replicate:

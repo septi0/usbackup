@@ -2,8 +2,7 @@ import logging
 import asyncio
 import datetime
 import shlex
-import io
-import usbackup.libraries.cmd_exec as cmd_exec
+from usbackup.libraries.cmd_exec import CmdExec
 from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.models.job import JobModel
 from usbackup.models.retention_policy import RetentionPolicyModel
@@ -49,7 +48,7 @@ class JobService:
         
         if self._pre_run_cmd:
             self._logger.info(f"Running pre run command")
-            await cmd_exec.exec_cmd(self._pre_run_cmd)
+            await CmdExec.exec(self._pre_run_cmd)
         
         semaphore = asyncio.Semaphore((self._concurrency))
         
@@ -68,7 +67,7 @@ class JobService:
                 
         if self._post_run_cmd:
             self._logger.info(f"Running post run command")
-            await cmd_exec.exec_cmd(self._post_run_cmd)
+            await CmdExec.exec(self._post_run_cmd)
                 
         self._logger.info(f'{self._type} job "{self._name}" finished')
         

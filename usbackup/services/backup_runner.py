@@ -1,9 +1,7 @@
-import os
 import logging
 import datetime
-import uuid
-import io
-import usbackup.libraries.cmd_exec as cmd_exec
+from usbackup.libraries.cmd_exec import CmdExec
+from usbackup.libraries.fs_adapter import FsAdapter
 from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.models.version import BackupVersionModel
 from usbackup.models.retention_policy import RetentionPolicyModel
@@ -26,16 +24,16 @@ class BackupRunner(Runner):
             raise UsbackupRuntimeError(f'Backup already running')
         
         # test connection to host
-        if not await cmd_exec.is_host_reachable(self._context.host):
+        if not await CmdExec.is_host_reachable(self._context.host):
             raise UsbackupRuntimeError(f'Host" {self._context.host}" is not reachable')
         
         self._logger.info(f'Backup started at {run_time}')
+        
+        latest_version = await self._context.get_latest_version()
+        version = await self._context.generate_version()
             
         await self._context.create_lock_file()
         self._cleanup.add_job(f'remove_lock_{self._id}', self._context.remove_lock_file)
-    
-        latest_version = self._context.get_latest_version()
-        version = await self._context.generate_version()
         
         error = None
         
@@ -44,7 +42,7 @@ class BackupRunner(Runner):
         except Exception as e:
             self._logger.exception(e, exc_info=True)
             self._logger.warning(f'Deleting inconsistent backup version')
-            self._context.remove_version(version)
+            await self._context.remove_version(version)
             error = e
         
         if not error:
@@ -71,16 +69,16 @@ class BackupRunner(Runner):
             
             handler = handler_factory('backup', handler_model.handler, handler_model, self._context.host, cleanup=self._cleanup, logger=handler_logger)
            
-            handler_dest = os.path.join(version.path, handler.handler)
+            handler_dest = version.path.join(handler.handler)
             handler_dest_link = None
             
             if latest_version:
                 self._logger.info(f'Using "{latest_version.path}" as dest link for "{handler.handler}" handler')
-                handler_dest_link = os.path.join(latest_version.path, handler.handler)
+                handler_dest_link = latest_version.path.join(handler.handler)
                 
-            if not os.path.isdir(handler_dest):
+            if not await FsAdapter.exists(handler_dest, 'd'):
                 self._logger.info(f'Creating handler directory "{handler_dest}"')
-                await cmd_exec.mkdir(handler_dest)
+                await FsAdapter.mkdir(handler_dest)
             
             self._logger.info(f'Performing backup via "{handler.handler}" handler')
             await handler.backup(handler_dest, handler_dest_link)

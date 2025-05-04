@@ -1,6 +1,7 @@
-import os
-import usbackup.libraries.cmd_exec as cmd_exec
 from typing import Literal
+from usbackup.libraries.cmd_exec import CmdExec
+from usbackup.libraries.fs_adapter import FsAdapter
+from usbackup.models.path import PathModel
 from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHandlerError
 
 class ProxmoxVmsHandlerModel(HandlerBaseModel):
@@ -30,11 +31,11 @@ class ProxmoxVmsHandler(BackupHandler):
             'none': 'vma',
         }
 
-    async def backup(self, dest: str, dest_link: str = None) -> None:
+    async def backup(self, dest: PathModel, dest_link: str = PathModel) -> None:
         self._logger.info(f'Fetching VM list from "{self._host}"')
         
         try:
-            exec_ret = await cmd_exec.exec_cmd(['qm', 'list'], host=self._host)
+            exec_ret = await CmdExec.exec(['qm', 'list'], host=self._host)
         except Exception as e:
             raise BackupHandlerError(f'Failed to fetch VM list: {e}', 1001)
         
@@ -60,7 +61,7 @@ class ProxmoxVmsHandler(BackupHandler):
         for vm in vms:
             await self._backup_vm(vm, dest)
             
-    async def _backup_vm(self, vm: int, dest: str) -> None:
+    async def _backup_vm(self, vm: int, dest: PathModel) -> None:
         cmd_options = [
             ('mode', self._mode),
             ('compress', self._compress),
@@ -72,10 +73,10 @@ class ProxmoxVmsHandler(BackupHandler):
         if self._bwlimit:
             cmd_options.append(('bwlimit', self._bwlimit))
         
-        cmd_options = cmd_exec.parse_cmd_options(cmd_options)
+        cmd_options = CmdExec.parse_cmd_options(cmd_options)
         file_name = f'vzdump-qemu-{vm}.{self._compression_types[self._compress]}'
 
-        with open(os.path.join(dest, file_name), 'wb') as f:
-            self._logger.info(f'Streaming vzdump for VM {vm} from "{self._host}" to "{dest}"')
+        async with FsAdapter.open(dest.join(file_name), 'wb') as f:
+            self._logger.info(f'Streaming vzdump for VM {vm} from "{self._host}" to "{dest.path}"')
             
-            await cmd_exec.exec_cmd(['vzdump', str(vm), *cmd_options], stdout=f, host=self._host)
+            await CmdExec.exec(['vzdump', str(vm), *cmd_options], stdout=f, host=self._host)

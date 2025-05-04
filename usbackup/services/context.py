@@ -1,13 +1,12 @@
 import logging
-import os
 import datetime
-import usbackup.libraries.cmd_exec as cmd_exec
-from usbackup.libraries.aio_files import afwrite
+from usbackup.libraries.fs_adapter import FsAdapter
 from usbackup.models.source import SourceModel
 from usbackup.models.storage import StorageModel
 from usbackup.models.host import HostModel
 from usbackup.models.handler_base import HandlerBaseModel
 from usbackup.models.version import BackupVersionModel
+from usbackup.models.path import PathModel
 
 __all__ = ['ContextService']
 
@@ -18,7 +17,7 @@ class ContextService:
         self._name: str = source.name
         self._host: HostModel = source.host
         self._handlers: list[HandlerBaseModel] = source.handlers
-        self._destination: str = os.path.join(storage.path, source.name)
+        self._destination: PathModel = storage.path.join(source.name)
         self._version_format: str = '%Y_%m_%d-%H_%M_%S'
     
     @property
@@ -34,25 +33,21 @@ class ContextService:
         return self._handlers
     
     @property
-    def destination(self) -> str:
+    def destination(self) -> PathModel:
         return self._destination
         
-    def get_versions(self) -> list[BackupVersionModel]:
+    async def get_versions(self) -> list[BackupVersionModel]:
         versions = []
         
         # get all backup directories
-        for version in os.listdir(self._destination):
-            version_path = os.path.join(self._destination, version)
-            
-            if not os.path.isdir(version_path):
-                continue
-            
+        for version in await FsAdapter.ls(self._destination):
             try:
                 version_date = datetime.datetime.strptime(version, self._version_format)
             except ValueError:
                 # skip directories that don't match the version format
                 continue
             
+            version_path = self._destination.join(version)
             versions.append(BackupVersionModel(version, version_path, version_date))
             
         if not versions:
@@ -63,8 +58,8 @@ class ContextService:
         
         return versions
     
-    def get_latest_version(self) -> BackupVersionModel:
-        versions = self.get_versions()
+    async def get_latest_version(self) -> BackupVersionModel:
+        versions = await self.get_versions()
         
         if not versions:
             return None
@@ -77,36 +72,36 @@ class ContextService:
     async def generate_version(self) -> BackupVersionModel:
         version_date = datetime.datetime.now()
         version = version_date.strftime(self._version_format)
-        version_path = os.path.join(self._destination, version)
+        version_path = self._destination.join(version)
         
         # create backup directory
-        if not os.path.isdir(version_path):
+        if not await FsAdapter.exists(version_path, 'd'):
             self._logger.info(f'Creating version directory {version_path}')
-            await cmd_exec.mkdir(version_path)
+            await FsAdapter.mkdir(version_path)
             
         return BackupVersionModel(version, version_path, version_date)
     
     async def remove_version(self, version: BackupVersionModel) -> None:
-        if not os.path.exists(version.path):
+        if not await FsAdapter.exists(version.path, 'd'):
             self._logger.warning(f'Version "{version}" does not exist')
             return
         
         # remove the version directory
-        await cmd_exec.remove(version.path)
+        await FsAdapter.rm(version.path)
         
         self._logger.info(f'Removed version path "{version.path}"')
         
     async def lock_file_exists(self) -> bool:
-        lock_file = os.path.join(self._destination, 'backup.lock')
+        lock_file = self._destination.join('backup.lock')
 
-        return os.path.isfile(lock_file)
+        return await FsAdapter.exists(lock_file, 'f')
 
     async def create_lock_file(self) -> None:
-        lock_file = os.path.join(self._destination, 'backup.lock')
+        lock_file = self._destination.join('backup.lock')
 
-        await afwrite(lock_file, '')
+        await FsAdapter.touch(lock_file)
 
     async def remove_lock_file(self) -> None:
-        lock_file = os.path.join(self._destination, 'backup.lock')
+        lock_file = self._destination.join('backup.lock')
 
-        await cmd_exec.remove(lock_file)
+        await FsAdapter.rm(lock_file)

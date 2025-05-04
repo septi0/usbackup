@@ -7,8 +7,6 @@ import asyncio
 from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.models.usbackup import UsBackupModel
 from usbackup.models.job import JobModel
-from usbackup.models.storage import StorageModel
-from usbackup.models.source import SourceModel
 from usbackup.models.handler_base import HandlerBaseModel
 from usbackup.services.job import JobService
 from usbackup.services.context import ContextService

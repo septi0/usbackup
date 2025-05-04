@@ -1,5 +1,6 @@
-import os
-import usbackup.libraries.cmd_exec as cmd_exec
+from usbackup.libraries.cmd_exec import CmdExec
+from usbackup.libraries.fs_adapter import FsAdapter
+from usbackup.models.path import PathModel
 from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHandlerError
 
 class ZfsDatasetsHandlerModel(HandlerBaseModel):
@@ -16,10 +17,10 @@ class ZfsDatasetsHandler(BackupHandler):
         self._limit: list[str] = model.limit
         self._exclude: list[str] = model.exclude
 
-    async def backup(self, dest: str, dest_link: str = None) -> None:
+    async def backup(self, dest: PathModel, dest_link: PathModel = None) -> None:
         self._logger.info(f'Fetching datasets from "{self._host}"')
         
-        exec_ret = await cmd_exec.exec_cmd(['zfs', 'list', '-H', '-o', 'name'], host=self._host)
+        exec_ret = await CmdExec.exec(['zfs', 'list', '-H', '-o', 'name'], host=self._host)
         
         datasets = [line.strip() for line in exec_ret.splitlines() if line.strip()]
         
@@ -47,13 +48,13 @@ class ZfsDatasetsHandler(BackupHandler):
             
             self._logger.info(f'Creating snapshot "{zfs_snapshot_name}" on "{self._host}"')
             
-            await cmd_exec.exec_cmd(['zfs', 'snapshot', zfs_snapshot_name], host=self._host)
-            self._cleanup.add_job(f'destroy_snapshot_{self._id}', cmd_exec.exec_cmd, ['zfs', 'destroy', zfs_snapshot_name], host=self._host)
+            await CmdExec.exec(['zfs', 'snapshot', zfs_snapshot_name], host=self._host)
+            self._cleanup.add_job(f'destroy_snapshot_{self._id}', CmdExec.exec, ['zfs', 'destroy', zfs_snapshot_name], host=self._host)
             
-            with open(os.path.join(dest, file_name), 'wb') as f:
-                self._logger.info(f'Streaming snapshot "{zfs_snapshot_name}" from "{self._host}" to "{dest}"')
+            async with FsAdapter.open(dest.join(file_name), 'wb') as f:
+                self._logger.info(f'Streaming snapshot "{zfs_snapshot_name}" from "{self._host}" to "{dest.path}"')
                 
-                await cmd_exec.exec_cmd(['zfs', 'send', zfs_snapshot_name], stdout=f, host=self._host)
+                await CmdExec.exec(['zfs', 'send', zfs_snapshot_name], stdout=f, host=self._host)
                 
             self._logger.info(f'Deleting snapshot "{zfs_snapshot_name}" on "{self._host}"')
             

@@ -1,9 +1,10 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.models.handler_base import HandlerBaseModel
 from usbackup.models.host import HostModel
-from usbackup.libraries.cleanup_queue import CleanupQueue
+from usbackup.models.path import PathModel
 
 __all__ = ['BackupHandler', 'BackupHandlerError']
 
@@ -19,7 +20,7 @@ class BackupHandler(ABC):
         self._id: str = str(uuid.uuid4())
 
     @abstractmethod
-    async def backup(self, backup_dst: str, backup_dst_link: str = None) -> None:
+    async def backup(self, backup_dst: PathModel, backup_dst_link: str = PathModel) -> None:
         pass
     
 class BackupHandlerError(Exception):

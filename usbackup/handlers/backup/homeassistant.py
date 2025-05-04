@@ -1,6 +1,7 @@
-import os
 import json
-import usbackup.libraries.cmd_exec as cmd_exec
+from usbackup.libraries.cmd_exec import CmdExec
+from usbackup.libraries.fs_adapter import FsAdapter
+from usbackup.models.path import PathModel
 from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHandlerError
 
 class HomeassistantHandlerModel(HandlerBaseModel):
@@ -12,10 +13,10 @@ class HomeassistantHandler(BackupHandler):
     def __init__(self, model: HomeassistantHandlerModel, *args, **kwargs) -> None:
         super().__init__(model, *args, **kwargs)
 
-    async def backup(self, dest: str, dest_link: str = None) -> None:
+    async def backup(self, dest: PathModel, dest_link: PathModel = None) -> None:
         self._logger.info(f'Generating backup archive on "{self._host}"')
         
-        result = await cmd_exec.exec_cmd(['ha', 'backups', 'new', '--name', 'usbackup', '--raw-json', '--no-progress'], host=self._host)
+        result = await CmdExec.exec(['ha', 'backups', 'new', '--name', 'usbackup', '--raw-json', '--no-progress'], host=self._host)
         
         # convert result to json
         try:
@@ -29,12 +30,14 @@ class HomeassistantHandler(BackupHandler):
         
         slug = result['data']['slug']
         
-        self._cleanup.add_job(f'remove_ha_backup_{self._id}', cmd_exec.exec_cmd, ['ha', 'backups', 'remove', slug], host=self._host)
+        self._cleanup.add_job(f'remove_backup_archive_{self._id}', CmdExec.exec, ['ha', 'backups', 'remove', slug], host=self._host)
 
-        self._logger.info(f'Copying backup from "{self._host}" to "{dest}"')
+        archive_path = PathModel(path=f'/root/backup/{slug}.tar', host=self._host)
+
+        self._logger.info(f'Copying "{archive_path}" to "{dest.path}"')
         
-        await cmd_exec.scp(f'/root/backup/{slug}.tar', os.path.join(dest, 'backup.tar'), host=self._host)
+        await FsAdapter.scp(archive_path, dest.join('archive.tar'))
         
         self._logger.info(f'Deleting backup archive on "{self._host}"')
         
-        await self._cleanup.run_job(f'remove_ha_backup_{self._id}')
+        await self._cleanup.run_job(f'remove_backup_archive_{self._id}')

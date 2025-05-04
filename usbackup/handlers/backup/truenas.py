@@ -1,4 +1,5 @@
-import usbackup.libraries.cmd_exec as cmd_exec
+from usbackup.libraries.fs_adapter import FsAdapter
+from usbackup.models.path import PathModel
 from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHandlerError
 
 class TruenasHandlerModel(HandlerBaseModel):
@@ -10,8 +11,11 @@ class TruenasHandler(BackupHandler):
     def __init__(self, model: TruenasHandlerModel, *args, **kwargs) -> None:
         super().__init__(model, *args, **kwargs)
 
-    async def backup(self, dest: str, dest_link: str = None) -> None:
-        self._logger.info(f'Copying config files from "{self._host}" to "{dest}"')
+    async def backup(self, dest: PathModel, dest_link: PathModel = None) -> None:
+        self._logger.info(f'Copying config files from "{self._host}" to "{dest.path}"')
         
-        await cmd_exec.rsync('/data/freenas-v1.db', dest, host=self._host)
-        await cmd_exec.rsync('/data/pwenc_secret', dest, host=self._host)
+        db_path = PathModel(path='/data/freenas-v1.db', host=self._host)
+        secret_path = PathModel(path='/data/pwenc_secret', host=self._host)
+        
+        await FsAdapter.rsync(db_path, dest)
+        await FsAdapter.rsync(secret_path, dest)

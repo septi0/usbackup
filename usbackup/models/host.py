@@ -1,7 +1,6 @@
 import socket
 import re
 from pydantic import BaseModel, ConfigDict, model_validator
-from usbackup.libraries.cmd_exec import CmdExecHostModel
 
 """
 Allwed remote formats:
@@ -13,7 +12,13 @@ Allwed remote formats:
     - username:password@hostname
 """
 
-class HostModel(BaseModel, CmdExecHostModel):
+class HostModel(BaseModel):
+    host: str
+    user: str = 'root'
+    password: str = None
+    port: int = 22
+    local: bool
+    
     model_config = ConfigDict(extra='forbid')
     
     @model_validator(mode='before')

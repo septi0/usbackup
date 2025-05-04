@@ -1,7 +1,8 @@
 from pydantic import BaseModel, ConfigDict
+from usbackup.models.path import PathModel
 
 class StorageModel(BaseModel):
     name: str
-    path: str
+    path: PathModel
     
     model_config = ConfigDict(extra='forbid')
