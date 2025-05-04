@@ -105,11 +105,15 @@ Commands:
 
     daemon              Run as daemon and perform actions based on configured jobs
     
-    backup              Backup hosts. This option creates a backup job from the options provided
+    run                 Run a job based on the provided paramaters
       options:
-        --dest DEST           Destination folder. If not specified, the default destination from config will be used
-        --limit LIMIT         Host name(s) to backup. If none specified, all hosts will be backed up except those specified in --exclude
-        --exclude EXCLUDE     Host name(s) to exclude in the backup
+        --type {backup,replication}
+                              The type of the job to run. Available types: backup, replication. Default: backup
+        --dest DEST           Destination storage to be used when performing the job
+        --replicate REPLICATE
+                              Source storage to read the data from when performing the replication job - required when the job type is replication, otherwise ignored
+        --limit LIMIT         List of sources for the job (if no sources are provided, all sources will be included, except the ones in the exclude list)
+        --exclude EXCLUDE     List of sources to exclude from the job
         --retention-policy RETENTION_POLICY
                               Retention policy. last=<NR>,hourly=<NR>,daily=<daNRys>,weekly=<NR>,monthly=<NR>,yearly=<NR>. Example: --retention-policy last=6,hourly=24,daily=7,weekly=4,monthly=12,yearly=1
         --notification-policy NOTIFICATION_POLICY
@@ -124,7 +128,14 @@ For a sample configuration file see `config.sample.yml` file. Aditionally, you c
 
 For details on how to configure the file, see the `config.sample.yml` file.
 
-Valid format for remotes:
+The main sections of the configuration file are:
+
+- `sources` Sources are the representation of each host that needs to be backed up and contains the instructions of what to back up.
+- `storages` Storages are the representation of backup destinations.
+- `jobs` Jobs are the glue that binds sources and storages together and defines when to run the backup and how many backups to keep.
+- `notifiers` Notifiers are the different methods of sending notifications after the backup is finished.
+
+Valid format for hosts:
 
 ```
 <user>:<password>@<host>:<port>
