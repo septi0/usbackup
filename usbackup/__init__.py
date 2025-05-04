@@ -15,22 +15,18 @@ def main():
 
     subparsers = parser.add_subparsers(title="Commands", dest="command")
     
+    daemon_parser = subparsers.add_parser('daemon', help='Run as daemon and perform actions based on configured jobs')
     configtest_parser = subparsers.add_parser('configtest', help='Test the configuration file')
+    job_parser = subparsers.add_parser('run', help='Run a job based on the provided paramaters')
     
-    stats_parser = subparsers.add_parser('stats', help='Show statistics of hosts')
-    stats_parser.add_argument('--limit', dest='limit', action='append', help='Host name(s) to check statistics for. If none specified, all hosts will be checked except those specified in --exclude')
-    stats_parser.add_argument('--exclude', dest='exclude', action='append', help='Host name(s) excluded in statistics check')
-
-    backup_parser = subparsers.add_parser('backup', help='Backup hosts. This option creates a backup job from the options provided')
-    
-    backup_parser.add_argument('--dest', dest='dest',  help='Destination folder. If not specified, the default destination from config will be used')
-    backup_parser.add_argument('--limit', dest='limit', action='append', help='Host name(s) to backup. If none specified, all hosts will be backed up except those specified in --exclude')
-    backup_parser.add_argument('--exclude', dest='exclude', action='append', help='Host name(s) to exclude in the backup')
-    backup_parser.add_argument('--retention-policy', dest='retention_policy', help='Retention policy. last=<NR>,hourly=<NR>,daily=<daNRys>,weekly=<NR>,monthly=<NR>,yearly=<NR>. Example: --retention-policy last=6,hourly=24,daily=7,weekly=4,monthly=12,yearly=1')
-    backup_parser.add_argument('--notification-policy', dest='notification_policy', default='always', type=str, help='Notification policy. Available options: never, always, on-failure. Default: always')
-    backup_parser.add_argument('--concurrency', dest='concurrency', default=1, type=int, help='Concurrency. Number of concurrent hosts to backup. Default: 1')
-    
-    backup_parser = subparsers.add_parser('daemon', help='Run as daemon and perform actions based on configured jobs')
+    job_parser.add_argument('--type', dest='type', default='backup', choices=['backup', 'replication'] , help='The type of the job to run. Available types: backup, replication. Default: backup')
+    job_parser.add_argument('--dest', dest='dest', required=True, help='Destination storage to be used when performing the job')
+    job_parser.add_argument('--replicate', dest='replicate', help='Source storage to read the data from when performing the replication job - required when the job type is replication, otherwise ignored')
+    job_parser.add_argument('--limit', dest='limit', action='append', help='List of sources for the job (if no sources are provided, all sources will be included, except the ones in the exclude list)')
+    job_parser.add_argument('--exclude', dest='exclude', action='append', help='List of sources to exclude from the job')
+    job_parser.add_argument('--retention-policy', dest='retention_policy', help='Retention policy. last=<NR>,hourly=<NR>,daily=<daNRys>,weekly=<NR>,monthly=<NR>,yearly=<NR>. Example: --retention-policy last=6,hourly=24,daily=7,weekly=4,monthly=12,yearly=1')
+    job_parser.add_argument('--notification-policy', dest='notification_policy', default='always', type=str, help='Notification policy. Available options: never, always, on-failure. Default: always')
+    job_parser.add_argument('--concurrency', dest='concurrency', default=1, type=int, help='Concurrency. Number of concurrent hosts to backup. Default: 1')
     
     args = parser.parse_args()
 
@@ -40,11 +36,12 @@ def main():
       
     alt_job = None
       
-    if args.command == 'backup' or args.command == 'replicate':
+    if args.command == 'run':
         alt_job = {
-            'name': 'manual-backup',
-            'type': 'backup',
+            'name': f'manual-{args.type}',
+            'type': args.type,
             'dest': args.dest,
+            'replicate': args.replicate,
             'limit': args.limit,
             'exclude': args.exclude,
             'retention_policy': args.retention_policy,
@@ -60,11 +57,11 @@ def main():
         print(f"{e}\nCheck documentation for more information on how to configure UsBackup")
         sys.exit(2)
     
-    if args.command == 'configtest':
-        print("Configuration file is valid")
-    elif args.command == 'backup':
+    if args.command == 'daemon':
+        usbackup.run_forever()
+    elif args.command == 'run':
         usbackup.run_once()
     elif args.command == 'daemon':
-        usbackup.run_forever()
+        print("Configuration file is valid")
 
     sys.exit(0)

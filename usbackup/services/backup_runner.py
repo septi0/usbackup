@@ -6,6 +6,7 @@ from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.models.version import BackupVersionModel
 from usbackup.models.retention_policy import RetentionPolicyModel
 from usbackup.models.result import ResultModel
+from usbackup.models.path import PathModel
 from usbackup.services.runner import Runner
 from usbackup.services.context import ContextService
 from usbackup.exceptions import UsbackupRuntimeError
@@ -37,10 +38,12 @@ class BackupRunner(Runner):
         await self._context.create_lock_file()
         self._cleanup.add_job(f'remove_lock_{self._id}', self._context.remove_lock_file)
         
+        dest = version.path
+        dest_link = latest_version.path if latest_version else None
         error = None
         
         try:
-            await self._run_backup_handlers(version, latest_version)
+            await self._run_backup_handlers(dest, dest_link)
         except Exception as e:
             self._logger.exception(e, exc_info=True)
             self._logger.warning(f'Deleting inconsistent backup version')
@@ -65,18 +68,18 @@ class BackupRunner(Runner):
         
         return ResultModel(self._context, message=self._log_stream.getvalue(), error=error, elapsed=elapsed)
     
-    async def _run_backup_handlers(self, version: BackupVersionModel, latest_version: BackupVersionModel) -> None:
+    async def _run_backup_handlers(self, dest: PathModel, dest_link: PathModel = None) -> None:
         for handler_model in self._context.handlers:
             handler_logger = self._logger.getChild(handler_model.handler)
             
             handler = handler_factory('backup', handler_model.handler, handler_model, self._context.host, cleanup=self._cleanup, logger=handler_logger)
            
-            handler_dest = version.path.join(handler.handler)
+            handler_dest = dest.join(handler.handler)
             handler_dest_link = None
             
-            if latest_version:
-                self._logger.info(f'Using "{latest_version.path}" as dest link for "{handler.handler}" handler')
-                handler_dest_link = latest_version.path.join(handler.handler)
+            if dest_link:
+                self._logger.info(f'Using "{dest_link}" as dest link for "{handler.handler}" handler')
+                handler_dest_link = dest_link.join(handler.handler)
                 
             if not await FsAdapter.exists(handler_dest, 'd'):
                 self._logger.info(f'Creating handler directory "{handler_dest}"')

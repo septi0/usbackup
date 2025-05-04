@@ -52,7 +52,7 @@ class UsBackupModel(BaseModel):
             if job.type == 'backup':
                 if not values.jobs[i].dest.path.host.local:
                     raise ValueError(f'Backup jobs only support local storage')
-            elif job.type == 'replicate':
+            elif job.type == 'replication':
                 values.jobs[i].replicate = next((storage for storage in values.storages if storage.name == job.replicate), None)
                 
                 if not values.jobs[i].replicate:

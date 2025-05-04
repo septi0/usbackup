@@ -5,6 +5,7 @@ from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.libraries.fs_adapter import FsAdapter
 from usbackup.models.retention_policy import RetentionPolicyModel
 from usbackup.models.result import ResultModel
+from usbackup.models.path import PathModel
 from usbackup.services.runner import Runner
 from usbackup.services.context import ContextService
 from usbackup.exceptions import UsbackupRuntimeError
@@ -21,7 +22,7 @@ class ReplicationRunner(Runner):
         if await self._context.lock_file_exists():
             raise UsbackupRuntimeError(f'Replication already running')
         
-        replicate_version = replicate_context.get_latest_version()
+        replicate_version = await replicate_context.get_latest_version()
         
         if not replicate_version:
             raise UsbackupRuntimeError(f'No backup version found to replicate')
@@ -33,22 +34,14 @@ class ReplicationRunner(Runner):
         await self._context.create_lock_file()
         self._cleanup.add_job(f'remove_lock_{self._id}', self._context.remove_lock_file)
 
+        src = replicate_version.path
+        dest = self._context.destination
         error = None
         
-        options = [
-            'archive',
-            'hard-links',
-            'acls',
-            'xattrs',
-        ]
-        
         try:
-            stats = await FsAdapter.rsync(replicate_version, self._context.destination, options=options)
-            self._logger.debug(stats)
+            await self._run_replication(src, dest)
         except Exception as e:
             self._logger.exception(e, exc_info=True)
-            # self._logger.warning(f'Deleting inconsistent replication version')
-            # await self._context.remove_version(version)
             error = e
         
         if not error:
@@ -68,3 +61,18 @@ class ReplicationRunner(Runner):
         self._logger.info(f'Replication finished at {finish_time}. Elapsed time: {elapsed_s:.2f} seconds')
         
         return ResultModel(self._context, message=self._log_stream.getvalue(), error=error, elapsed=elapsed)
+    
+    async def _run_replication(self, source: PathModel, dest: PathModel) -> None:
+        options = [
+            'archive',
+            'hard-links',
+            'acls',
+            'xattrs',
+            'delete',
+            'delete-during',
+        ]
+        
+        self._logger.info(f'Replicating "{source}" to "{dest}"')
+        
+        stats = await FsAdapter.rsync(source, dest, options=options)
+        self._logger.debug(stats)

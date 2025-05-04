@@ -33,7 +33,7 @@ storages:
     path: /path/to/storage1 # Path to the storage to be used
 
 jobs:
-  - name: job1 # The name of the backup job
+  - name: job1 # The name of the ckup job
 
     type: backup # The type of the job. Available types: backup, replication. Default: backup
 
@@ -43,9 +43,9 @@ jobs:
 
     schedule: 0 0 * * * # Cron schedule to be used when running the job. Default: 0 0 * * *
 
-    limit: [host1] # list of sources for the backup job - optional (if no sources are provided, all sources will be included, except the ones in the exclude list)
+    limit: [host1] # List of sources for the job - optional (if no sources are provided, all sources will be included, except the ones in the exclude list)
 
-    exclude: [host2] # list of sources to exclude from the backup job - optional
+    exclude: [host2] # List of sources to exclude from the job - optional
 
     retention_policy: # Pruning policy to be applied to versions - optional (if no policy is provided, all versions will be kept indefinitely)
       last: 3 # Number of last versions to keep (this ensures that the last N versions are kept, regardless of the other policies)
@@ -53,7 +53,7 @@ jobs:
       daily: 7 # Number of daily versions to keep
       weekly: 4 # Number of weekly versions to keep
       monthly: 12 # Number of monthly versions to keep
-      yearly: 5 # Number of yearly versions to keep
+      yearly: 1 # Number of yearly versions to keep
 
     notification_policy: always # The notification policy. Available policies: always, on-failure, never. Default: always
 
