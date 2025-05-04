@@ -3,8 +3,6 @@ import re
 from pydantic import BaseModel, ConfigDict, model_validator
 from usbackup.libraries.cmd_exec import CmdExecHostModel
 
-__all__ = ['HostModel']
-
 """
 Allwed remote formats:
     - hostname

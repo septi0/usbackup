@@ -96,7 +96,7 @@ async def mounted(mount: str, *, host: CmdExecHostModel = None):
 
     return await exec_cmd(["mountpoint", "-q", mount], host=host)
 
-async def rsync(src: str | list, dst: str, *, host: CmdExecHostModel = None, options: list = []):
+async def rsync(src: str, dst: str, *, host: CmdExecHostModel = None, options: list = []):
     if not src or not dst:
         raise CmdExecError("Source or destination not specified")
 
@@ -105,15 +105,8 @@ async def rsync(src: str | list, dst: str, *, host: CmdExecHostModel = None, opt
     cmd_prefix = []
     ssh_opts = []
     
-    if isinstance(src, str):
-        src = [src]
-    
     if host and not host.local:
-        src[0] = f'{host.user}@{host.host}:{src[0]}'
-        
-        # prepend : to rest of the sources (if any)
-        if len(src) > 1:
-            src[1:] = [f':{s}' for s in src[1:]]
+        src = f'{host.user}@{host.host}:{src}'
         
         if host.password:
             cmd_prefix += ['sshpass', '-p', str(host.password)]
@@ -127,7 +120,7 @@ async def rsync(src: str | list, dst: str, *, host: CmdExecHostModel = None, opt
     if ssh_opts:
         cmd_options += ['--rsh', f'ssh {" ".join(ssh_opts)}']
 
-    return await exec_cmd([*cmd_prefix, "rsync", *cmd_options, *src, dst])
+    return await exec_cmd([*cmd_prefix, "rsync", *cmd_options, src, dst])
 
 async def scp(src: str, dst: str, *, host: CmdExecHostModel = None):
     if not src or not dst:
@@ -135,16 +128,9 @@ async def scp(src: str, dst: str, *, host: CmdExecHostModel = None):
 
     cmd_prefix = []
     ssh_opts = []
-    
-    if isinstance(src, str):
-        src = [src]
 
     if host and not host.local:
-        src[0] = f'{host.user}@{host.host}:{src[0]}'
-        
-        # prepend : to rest of the sources (if any)
-        if len(src) > 1:
-            src[1:] = [f':{s}' for s in src[1:]]
+        src = f'{host.user}@{host.host}:{src}'
         
         if host.password:
             cmd_prefix += ['sshpass', '-p', str(host.password)]
@@ -155,7 +141,7 @@ async def scp(src: str, dst: str, *, host: CmdExecHostModel = None):
         if host.port:
             ssh_opts += ['-P', str(host.port)]
 
-    return await exec_cmd([*cmd_prefix, "scp", *ssh_opts, *src, dst])
+    return await exec_cmd([*cmd_prefix, "scp", *ssh_opts, src, dst])
 
 async def tar(dst: str, src: list[str], *, host: CmdExecHostModel = None):
     if not dst or not src:
