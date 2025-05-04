@@ -130,8 +130,8 @@ For details on how to configure the file, see the `config.sample.yml` file.
 
 The main sections of the configuration file are:
 
-- `sources` Sources are the representation of each host that needs to be backed up and contains the instructions of what to back up.
-- `storages` Storages are the representation of backup destinations.
+- `sources` Sources are the representation of each host that needs to be backed up and contains the instructions of what to back up on that host.
+- `storages` Storages are the representation of the different backup destinations.
 - `jobs` Jobs are the glue that binds sources and storages together and defines when to run the backup and how many backups to keep.
 - `notifiers` Notifiers are the different methods of sending notifications after the backup is finished.
 
