@@ -104,9 +104,6 @@ class UsBackupManager:
         return logger
     
     def _notifier_factory(self, handler_models: list[HandlerBaseModel]) -> NotifierService:
-        if not handler_models:
-            return None
-        
         notifier_logger = self._logger.getChild('notifier')
         handlers = []
 
@@ -163,7 +160,7 @@ class UsBackupManager:
         except (GracefulExit) as e:
             self._logger.info("Received termination signal")
         except (Exception) as e:
-            self._logger.exception(e, exc_info=True)
+            self._logger.exception(e)
         finally:
             try:
                 # run cleanup jobs before exiting
@@ -275,4 +272,4 @@ class UsBackupManager:
         
         for task in tasks:
             if isinstance(task.exception(), Exception):
-                self._logger.exception(task.exception(), exc_info=True)
+                self._logger.exception(task.exception())

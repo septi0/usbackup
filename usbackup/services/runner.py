@@ -1,4 +1,3 @@
-import os
 import logging
 import datetime
 import uuid
@@ -7,6 +6,7 @@ from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.models.version import BackupVersionModel
 from usbackup.models.retention_policy import RetentionPolicyModel
 from usbackup.services.context import ContextService
+from usbackup.utils.logging import NoExceptionFormatter
 from usbackup.exceptions import UsbackupRuntimeError
 
 __all__ = ['Runner']
@@ -24,7 +24,7 @@ class Runner:
         
         # bind stream to logger
         stream_handler = logging.StreamHandler(self._log_stream)
-        stream_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+        stream_handler.setFormatter(NoExceptionFormatter('%(asctime)s - %(message)s'))
         logger.addHandler(stream_handler)
     
     async def apply_retention_policy(self) -> int:

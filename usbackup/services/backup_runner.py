@@ -45,7 +45,7 @@ class BackupRunner(Runner):
         try:
             await self._run_backup_handlers(dest, dest_link)
         except Exception as e:
-            self._logger.exception(e, exc_info=True)
+            self._logger.exception(e)
             self._logger.warning(f'Deleting inconsistent backup version')
             await self._context.remove_version(version)
             error = e
@@ -54,7 +54,7 @@ class BackupRunner(Runner):
             try:
                 await self.apply_retention_policy()
             except Exception as e:
-                self._logger.exception(f'Failed to apply retention policy. {e}', exc_info=True)
+                self._logger.exception(f'Failed to apply retention policy. {e}')
                 error = e
 
         await self._cleanup.run_job(f'remove_lock_{self._id}')

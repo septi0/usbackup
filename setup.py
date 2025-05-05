@@ -32,6 +32,7 @@ setup(
         'usbackup.libraries',
         'usbackup.models',
         'usbackup.services',
+        'usbackup.utils',
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

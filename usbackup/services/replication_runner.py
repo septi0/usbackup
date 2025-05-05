@@ -41,14 +41,14 @@ class ReplicationRunner(Runner):
         try:
             await self._run_replication(src, dest)
         except Exception as e:
-            self._logger.exception(e, exc_info=True)
+            self._logger.exception(e)
             error = e
         
         if not error:
             try:
                 await self.apply_retention_policy()
             except Exception as e:
-                self._logger.exception(f'Failed to apply retention policy. {e}', exc_info=True)
+                self._logger.exception(f'Failed to apply retention policy. {e}')
                 error = e
 
         await self._cleanup.run_job(f'remove_lock_{self._id}')

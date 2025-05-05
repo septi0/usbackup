@@ -61,7 +61,7 @@ class JobService:
         for task in tasks:
             if isinstance(task.exception(), Exception):
                 try: raise task.exception()
-                except Exception as e: self._logger.exception(e, exc_info=True)
+                except Exception as e: self._logger.exception(e)
             else:
                 results.append(task.result())
                 
@@ -90,7 +90,7 @@ class JobService:
                     replicate_context = ContextService(source, self._replication_src, logger=logger)
                     return await runner.run(replicate_context)
             except Exception as e:
-                self._logger.exception(e, exc_info=True)
+                self._logger.exception(e)
                 return ResultModel(context, error=e)
     
     def is_job_due(self) -> bool:
