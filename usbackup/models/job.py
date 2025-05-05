@@ -20,10 +20,10 @@ class JobModel(BaseModel):
     
     @model_validator(mode='after')
     @classmethod
-    def validate(cls, values): 
+    def validate_after(cls, values):
         if values.type == 'replication':
             if not values.replicate:
-                raise ValueError('Replication job requires a storage to replicate from')
+                raise ValueError('For "replication" type jobs, the "replicate" field is mandatory (it should contain the name of a storage)')
             
             if values.replicate == values.dest:
                 raise ValueError('Replication job cannot replicate to the same storage as the source')

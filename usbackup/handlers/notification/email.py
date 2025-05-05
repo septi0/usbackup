@@ -22,7 +22,7 @@ class EmailHandler(NotificationHandler):
     async def notify(self, job_name: str, job_type: str, status: str, results: list[ResultModel]) -> None:
         to = ", ".join(self._email_addresses)
         body = self._gen_email_body(job_name, job_type, status, results)
-        subject = f'{job_type.capitalize()} status ({job_name}): {status}'
+        subject = f'{job_type.capitalize()} job "{job_name}" status: {status}'
 
         message = f'From: {self._from_address}\nTo: {to}\nSubject: {subject}\nMIME-Version: 1.0\nContent-Type: text/html; charset=UTF-8\n\n{body}'
 

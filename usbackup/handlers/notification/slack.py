@@ -29,7 +29,7 @@ class SlackHandler(NotificationHandler):
         params = {
             'channels': self._slack_channel,
             'filename': 'report.log',
-            'initial_comment': f'*{job_type.capitalize()} status ({job_name}): {status}*',
+            'initial_comment': f'*{job_type.capitalize()} job "{job_name}" status: {status}*',
         }
 
         files = {

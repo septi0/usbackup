@@ -23,9 +23,9 @@ class HostModel(BaseModel):
     
     @model_validator(mode='before')
     @classmethod
-    def validate(cls, values):
+    def validate_before(cls, values):
         if not isinstance(values, str):
-            raise ValueError('Invalid remote string provided')
+            return values
         
         pattern = r'^(?:(?P<username>[^:@]+)(?::(?P<password>[^@]+))?@)?(?P<hostname>[^:/]+)(?::(?P<port>\d+))?$'
 

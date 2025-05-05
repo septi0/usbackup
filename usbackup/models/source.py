@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from usbackup.handlers import handler_model_factory
 from usbackup.models.host import HostModel
 
@@ -9,20 +9,18 @@ class SourceModel(BaseModel):
     
     model_config = ConfigDict(extra='forbid')
     
-    @model_validator(mode='after')
+    @field_validator('handlers', mode='after')
     @classmethod
-    def validate_handler(cls, values):
-        handlers = values.handlers
-        
+    def validate_handlers(cls, handlers):
         parsed_values = []
         
-        for handler in handlers:
+        for i, handler in enumerate(handlers):
             if not 'handler' in handler:
-                raise ValueError('Handler not specified')
+                raise ValueError(f'Handler not specified')
             
-            # Validate the handler model
-            parsed_values.append(handler_model_factory('backup', handler['handler'], **handler))
+            try:
+                parsed_values.append(handler_model_factory('backup', handler['handler'], **handler))
+            except ImportError as e:
+                raise ValueError(f'Inexistent handler "{handler["handler"]}"')
             
-        values.handlers = parsed_values
-            
-        return values
+        return parsed_values

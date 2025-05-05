@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator, field_validator
 from usbackup.models.source import SourceModel
 from usbackup.models.storage import StorageModel
 from usbackup.models.job import JobModel
@@ -12,9 +12,25 @@ class UsBackupModel(BaseModel):
 
     model_config = ConfigDict(extra='forbid')
     
+    @field_validator('notifiers', mode='after')
+    @classmethod
+    def validate_notifiers(cls, notifiers):
+        parsed_notifiers = []
+        
+        for i, handler in enumerate(notifiers):
+            if not 'handler' in handler:
+                raise ValueError('Handler not specified')
+            
+            try:
+                parsed_notifiers.append(handler_model_factory('notification', handler['handler'], **handler))
+            except ImportError as e:
+                raise ValueError(f'Inexistent handler "{handler["handler"]}"')
+            
+        return parsed_notifiers
+    
     @model_validator(mode='after')
     @classmethod
-    def validate(cls, values):
+    def validate_after(cls, values):
         # ensure that sources[].name is unique
         host_names = [source.name for source in values.sources]
         if len(host_names) != len(set(host_names)):
@@ -29,33 +45,5 @@ class UsBackupModel(BaseModel):
         job_names = [job.name for job in values.jobs]
         if len(job_names) != len(set(job_names)):
             raise ValueError('Job names must be unique')
-        
-        # add dynamic notification handlers
-        parsed_notifiers = []
-        
-        for handler in values.notifiers:
-            if not 'handler' in handler:
-                raise ValueError('Handler not specified')
-            
-            # Validate the handler model
-            parsed_notifiers.append(handler_model_factory('notification', handler['handler'], **handler))
-            
-        values.notifiers = parsed_notifiers
-        
-        # add models for dest and replicate for each job
-        for i, job in enumerate(values.jobs):
-            values.jobs[i].dest = next((storage for storage in values.storages if storage.name == job.dest), None)
-            
-            if not values.jobs[i].dest:
-                raise ValueError(f'Job "{job.name}" has inexistent destination storage')
-            
-            if job.type == 'backup':
-                if not values.jobs[i].dest.path.host.local:
-                    raise ValueError(f'Backup jobs only support local storage')
-            elif job.type == 'replication':
-                values.jobs[i].replicate = next((storage for storage in values.storages if storage.name == job.replicate), None)
-                
-                if not values.jobs[i].replicate:
-                    raise ValueError(f'Job "{job.name}" has inexistent replication storage')
             
         return values

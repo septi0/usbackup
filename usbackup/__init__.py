@@ -54,7 +54,14 @@ def main():
     try:
         usbackup = UsBackupManager(log_file=args.log_file, log_level=args.log_level, config_file=args.config_file, alt_job=alt_job)
     except ValidationError as e:
-        print(f"{e}\nCheck documentation for more information on how to configure UsBackup")
+        print(f"Configuration file contains {e.error_count()} error(s):")
+        
+        for error in e.errors(include_url=False):
+            loc = '.'.join(str(x) for x in error['loc']) if error['loc'] else 'general'
+            print(f"  - {loc}: {error['msg']}")
+            exit()
+
+        print(f"\nCheck documentation for more information on how to configure UsBackup")
         sys.exit(2)
     
     if args.command == 'daemon':

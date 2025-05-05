@@ -4,6 +4,7 @@ import signal
 import yaml
 import datetime
 import asyncio
+from logging.handlers import TimedRotatingFileHandler
 from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.models.usbackup import UsBackupModel
 from usbackup.models.job import JobModel
@@ -91,7 +92,7 @@ class UsBackupManager:
         logger.setLevel(levels[log_level])
 
         if log_file:
-            handler = logging.FileHandler(log_file)
+            handler = TimedRotatingFileHandler(log_file, when="midnight", backupCount=4)
         else:
             handler = logging.StreamHandler()
 
@@ -128,8 +129,21 @@ class UsBackupManager:
             
         if not source_models:
             raise UsbackupRuntimeError("No sources left to backup after limit/exclude filters")
+        
+        dest = next((storage for storage in self._model.storages if storage.name == model.dest), None)
+        
+        if not dest:
+            raise UsbackupRuntimeError(f"Job {model.name} has inexistent destination storage")
+        
+        replication_src = None
+        
+        if model.type == 'replication':
+            replication_src = next((storage for storage in self._model.storages if storage.name == model.replicate), None)
+            
+            if not replication_src:
+                raise UsbackupRuntimeError(f"Job {model.name} has inexistent replication storage")
 
-        return JobService(model, source_models, cleanup=self._cleanup, notifier=self._notifier, logger=self._logger)
+        return JobService(model, source_models, replication_src, dest, cleanup=self._cleanup, notifier=self._notifier, logger=self._logger)
     
     def _sigterm_handler(self) -> None:
         raise GracefulExit

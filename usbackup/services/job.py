@@ -18,8 +18,10 @@ from usbackup.exceptions import UsbackupRuntimeError
 __all__ = ['JobService']
 
 class JobService:
-    def __init__(self, job: JobModel, sources: list[SourceModel], *, cleanup: CleanupQueue, notifier: NotifierService, logger: logging.Logger):
+    def __init__(self, job: JobModel, sources: list[SourceModel], replication_src: StorageModel, dest: StorageModel, *, cleanup: CleanupQueue, notifier: NotifierService, logger: logging.Logger):
         self._sources: list[SourceModel] = sources
+        self._replication_src: StorageModel = replication_src
+        self._dest: StorageModel = dest
         
         self._cleanup: CleanupQueue = cleanup
         self._notifier: NotifierService = notifier
@@ -27,8 +29,6 @@ class JobService:
         
         self._name: str = job.name
         self._type: str = job.type
-        self._dest: StorageModel = job.dest
-        self._replicate: StorageModel = job.replicate
         self._schedule: str = job.schedule
         self._retention_policy: RetentionPolicyModel = job.retention_policy
         self._notification_policy: str = job.notification_policy
@@ -87,7 +87,7 @@ class JobService:
                 elif self._type == 'replication':
                     runner = ReplicationRunner(context, self._retention_policy, cleanup=self._cleanup, logger=logger)
                     
-                    replicate_context = ContextService(source, self._replicate, logger=logger)
+                    replicate_context = ContextService(source, self._replication_src, logger=logger)
                     return await runner.run(replicate_context)
             except Exception as e:
                 self._logger.exception(e, exc_info=True)
