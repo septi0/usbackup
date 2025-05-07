@@ -10,7 +10,7 @@ class NotifierService:
         self._logger: logging.Logger = logger
 
     async def notify(self, name: str, type: str, results: list[ResultModel], *, notification_policy: str = None) -> None:
-        errors = any(result.status != 'ok' for result in results)
+        errors = any(result.error for result in results)
         status = 'ok' if not errors else 'failed'
         
         if notification_policy == 'never':

@@ -1,3 +1,4 @@
+import datetime
 from usbackup.services.context import ContextService
 
 class ResultModel:
@@ -8,7 +9,7 @@ class ResultModel:
         self._error: Exception = error
         self._elapsed: int = elapsed
         
-        self._status = 'failed' if error else 'ok'
+        self._date: datetime.datetime = datetime.datetime.now()
     
     @property
     def name(self) -> str:
@@ -31,5 +32,5 @@ class ResultModel:
         return self._context.destination
     
     @property
-    def status(self) -> str:
-        return self._status
+    def date(self) -> datetime.datetime:
+        return self._date

@@ -36,7 +36,7 @@ class EmailHandler(NotificationHandler):
         details = ''
         
         for result in results:
-            if result.status == 'ok':
+            if not result.error:
                 status_str = '<strong style="color:green;">OK</strong>'
             else:
                 status_str = f'<strong style="color:red;">Failed</strong> <span>({result.error})</span>'

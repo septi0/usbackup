@@ -4,6 +4,7 @@ import signal
 import yaml
 import datetime
 import asyncio
+import shelve
 from logging.handlers import TimedRotatingFileHandler
 from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.models.usbackup import UsBackupModel
@@ -19,11 +20,12 @@ __all__ = ['UsBackupManager']
 
 class UsBackupManager:
     def __init__(self, *, log_file: str = None, log_level: str = None, config_file: str = None, alt_job: dict = None) -> None:
-        self._pid_filepath: str = self._gen_pid_filepath()
+        self._pid_filepath: str = self._get_pid_filepath()
 
         self._logger: logging.Logger = self._logger_factory(log_file, log_level)
         self._model: UsBackupModel = UsBackupModel(**self._load_config(file=config_file, alt_job=alt_job))
         self._cleanup: CleanupQueue = CleanupQueue()
+        self._datastore: shelve.Shelf = shelve.open(self._get_datastore_filepath(), writeback=True)
         self._notifier: NotifierService = self._notifier_factory(self._model.notifiers)
 
     def run_once(self) -> None:
@@ -68,11 +70,24 @@ class UsBackupManager:
             
         return config
         
-    def _gen_pid_filepath(self) -> str:
+    def _get_pid_filepath(self) -> str:
         if os.getuid() == 0:
             return '/var/run/usbackup.pid'
         else:
             return os.path.expanduser('~/.usbackup.pid')
+        
+    def _get_datastore_filepath(self) -> str:
+        if os.getuid() == 0:
+            filepath = '/var/opt/usbackup/usbackup.db'
+        else:
+            filepath = os.path.expanduser('~/.usbackup/usbackup.db')
+            
+        directory = os.path.dirname(filepath)
+        
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+            
+        return filepath
     
     def _logger_factory(self, log_file: str, log_level: str) -> logging.Logger:
         levels = {
@@ -92,6 +107,11 @@ class UsBackupManager:
         logger.setLevel(levels[log_level])
 
         if log_file:
+            directory = os.path.dirname(log_file)
+            
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            
             handler = TimedRotatingFileHandler(log_file, when="midnight", backupCount=4)
         else:
             handler = logging.StreamHandler()
@@ -140,13 +160,15 @@ class UsBackupManager:
             if not replication_src:
                 raise UsbackupRuntimeError(f"Job {model.name} has inexistent replication storage")
 
-        return JobService(model, source_models, replication_src, dest, cleanup=self._cleanup, notifier=self._notifier, logger=self._logger)
+        return JobService(model, source_models, replication_src, dest, cleanup=self._cleanup, datastore=self._datastore, notifier=self._notifier, logger=self._logger)
     
     def _sigterm_handler(self) -> None:
         raise GracefulExit
     
     def _run_main(self, main_task, *args, **kwargs) -> any:
         output = None
+        
+        self._cleanup.add_job('close_datastore', self._datastore.close)
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -198,12 +220,19 @@ class UsBackupManager:
                 })
                 
     async def _do_run_once(self) -> None:
+        self._datastore['last_manual_run'] = datetime.datetime.now()
+        self._datastore.sync()
+        
         job = self._job_factory(self._model.jobs[0])
         
         await job.run()
+        
         return
 
     async def _do_run_forever(self) -> None:
+        self._datastore['last_service_run'] = datetime.datetime.now()
+        self._datastore.sync()
+        
         job_models = self._model.jobs
         
         if not job_models:
@@ -225,8 +254,8 @@ class UsBackupManager:
         with open(self._pid_filepath, 'w') as f:
             f.write(pid)
 
-        self._cleanup.add_job('service_pid', os.remove, self._pid_filepath)
-        self._cleanup.add_job('shutdown_service', self._logger.info, 'Shutting down service')
+        self._cleanup.add_job('remove_service_pid', os.remove, self._pid_filepath)
+        self._cleanup.add_job('log_service_pid_removal', self._logger.info, 'Shutting down service')
 
         self._logger.info(f'Starting service with pid {pid}')
 

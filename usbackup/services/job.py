@@ -2,6 +2,7 @@ import logging
 import asyncio
 import datetime
 import shlex
+import shelve
 from usbackup.libraries.cmd_exec import CmdExec
 from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.models.job import JobModel
@@ -18,12 +19,13 @@ from usbackup.exceptions import UsbackupRuntimeError
 __all__ = ['JobService']
 
 class JobService:
-    def __init__(self, job: JobModel, sources: list[SourceModel], replication_src: StorageModel, dest: StorageModel, *, cleanup: CleanupQueue, notifier: NotifierService, logger: logging.Logger):
+    def __init__(self, job: JobModel, sources: list[SourceModel], replication_src: StorageModel, dest: StorageModel, *, cleanup: CleanupQueue, datastore: shelve.Shelf, notifier: NotifierService, logger: logging.Logger):
         self._sources: list[SourceModel] = sources
         self._replication_src: StorageModel = replication_src
         self._dest: StorageModel = dest
         
         self._cleanup: CleanupQueue = cleanup
+        self._datastore: shelve.Shelf = datastore
         self._notifier: NotifierService = notifier
         self._logger: logging.Logger = logger
         
@@ -83,15 +85,24 @@ class JobService:
                 if self._type == 'backup':
                     runner = BackupRunner(context, self._retention_policy, cleanup=self._cleanup, logger=logger)
                     
-                    return await runner.run()
+                    result = await runner.run()
                 elif self._type == 'replication':
                     runner = ReplicationRunner(context, self._retention_policy, cleanup=self._cleanup, logger=logger)
                     
                     replicate_context = ContextService(source, self._replication_src, logger=logger)
-                    return await runner.run(replicate_context)
+                    result = await runner.run(replicate_context)
             except Exception as e:
                 self._logger.exception(e)
-                return ResultModel(context, error=e)
+                result = ResultModel(context, error=e)
+            
+            if not result.error and self._type == 'backup':
+                if not 'last_backup' in self._datastore:
+                    self._datastore['last_backup'] = {}
+                    
+                self._datastore['last_backup'][context.name] = result
+                self._datastore.sync()
+            
+            return result
     
     def is_job_due(self) -> bool:
         cron_schedule = self._schedule
