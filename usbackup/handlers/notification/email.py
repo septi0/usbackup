@@ -1,4 +1,5 @@
 import shlex
+import datetime
 from usbackup.libraries.cmd_exec import CmdExec
 from usbackup.models.result import ResultModel
 from usbackup.handlers.notification import HandlerBaseModel, NotificationHandler, NotificationHandlerError
@@ -19,10 +20,10 @@ class EmailHandler(NotificationHandler):
         self._email_addresses: list[str] = model.to
         self._email_command: list = shlex.split(model.command)
 
-    async def notify(self, job_name: str, job_type: str, status: str, results: list[ResultModel]) -> None:
+    async def notify(self, status: str, results: list[ResultModel], *, elapsed: datetime.timedelta) -> None:
         to = ", ".join(self._email_addresses)
-        body = self._gen_email_body(job_name, job_type, status, results)
-        subject = f'{job_type.capitalize()} job "{job_name}" status: {status}'
+        body = self._gen_email_body(status, results, elapsed=elapsed)
+        subject = f'{self._type.capitalize()} job "{self._name}" status: {status}'
 
         message = f'From: {self._from_address}\nTo: {to}\nSubject: {subject}\nMIME-Version: 1.0\nContent-Type: text/html; charset=UTF-8\n\n{body}'
 
@@ -31,7 +32,7 @@ class EmailHandler(NotificationHandler):
         except Exception as e:
             raise NotificationHandlerError(f'Email exception: {e}', 1011)
         
-    def _gen_email_body(self, job_name: str, job_type: str, status: str, results: list[ResultModel]) -> str:
+    def _gen_email_body(self, status: str, results: list[ResultModel], *, elapsed: datetime.timedelta) -> str:
         summary_table = ''
         details = ''
         
@@ -58,7 +59,7 @@ class EmailHandler(NotificationHandler):
         content = f'''
         <html>
             <body>
-                <p>{job_type.capitalize()} job "{job_name}" finished with status "{status}".</p>
+                <p>{self._type.capitalize()} job "{self._name}" finished with status "{status}". Total elapsed time: {elapsed}</p>
                 <h3>Summary</h3>
                 <table border="1" cellpadding="5" cellspacing="0">
                     <thead>

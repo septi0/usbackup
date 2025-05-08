@@ -26,7 +26,6 @@ class UsBackupManager:
         self._model: UsBackupModel = UsBackupModel(**self._load_config(file=config_file, alt_job=alt_job))
         self._cleanup: CleanupQueue = CleanupQueue()
         self._datastore: shelve.Shelf = shelve.open(self._get_datastore_filepath(), writeback=True)
-        self._notifier: NotifierService = self._notifier_factory(self._model.notifiers)
 
     def run_once(self) -> None:
         return self._run_main(self._do_run_once)
@@ -123,16 +122,10 @@ class UsBackupManager:
 
         return logger
     
-    def _notifier_factory(self, handler_models: list[HandlerBaseModel]) -> NotifierService:
+    def _notifier_factory(self, job_model: JobModel, handler_models: list[HandlerBaseModel]) -> NotifierService:
         notifier_logger = self._logger.getChild('notifier')
-        handlers = []
 
-        for handler_model in handler_models:
-            handler_logger = notifier_logger.getChild(handler_model.handler)
-
-            handlers.append(handler_factory('notification', handler_model.handler, handler_model, logger=handler_logger))
-
-        return NotifierService(handlers, logger=notifier_logger)
+        return NotifierService(job_model, handler_models, logger=notifier_logger)
     
     def _job_factory(self, model: JobModel) -> JobService:
         source_models = self._model.sources
@@ -159,8 +152,10 @@ class UsBackupManager:
             
             if not replication_src:
                 raise UsbackupRuntimeError(f"Job {model.name} has inexistent replication storage")
+            
+        notifier = self._notifier_factory(model, self._model.notifiers)
 
-        return JobService(model, source_models, replication_src, dest, cleanup=self._cleanup, datastore=self._datastore, notifier=self._notifier, logger=self._logger)
+        return JobService(model, source_models, replication_src, dest, cleanup=self._cleanup, datastore=self._datastore, notifier=notifier, logger=self._logger)
     
     def _sigterm_handler(self) -> None:
         raise GracefulExit

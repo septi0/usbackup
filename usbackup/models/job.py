@@ -1,3 +1,4 @@
+import shlex
 from typing import Literal
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 from usbackup.models.retention_policy import RetentionPolicyModel
@@ -12,11 +13,22 @@ class JobModel(BaseModel):
     retention_policy: RetentionPolicyModel = None
     notification_policy: Literal['never', 'always', 'on-failure'] = 'always'
     concurrency: int = Field(1, ge=1)
-    pre_run_cmd: str = None
-    post_run_cmd: str = None
+    pre_run_cmd: list = None
+    post_run_cmd: list = None
     replicate: str = None
 
     model_config = ConfigDict(extra='forbid')
+
+    @model_validator(mode='before')
+    @classmethod
+    def validate_before(cls, values):
+        if 'pre_run_cmd' in values and isinstance(values['pre_run_cmd'], str):
+            values['pre_run_cmd'] = shlex.split(values['pre_run_cmd'])
+            
+        if 'post_run_cmd' in values and isinstance(values['post_run_cmd'], str):
+            values['post_run_cmd'] = shlex.split(values['post_run_cmd'])
+            
+        return values
     
     @model_validator(mode='after')
     @classmethod

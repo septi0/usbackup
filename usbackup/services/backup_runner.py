@@ -19,14 +19,14 @@ class BackupRunner(Runner):
         super().__init__(context, retention_policy, cleanup=cleanup, logger=logger)
         
     async def run(self) -> None:
-        run_time = datetime.datetime.now()
-        
         if await self._context.lock_file_exists():
             raise UsbackupRuntimeError(f'Backup already running')
         
         # test connection to host
         if not await CmdExec.is_host_reachable(self._context.host):
             raise UsbackupRuntimeError(f'Host" {self._context.host}" is not reachable')
+        
+        run_time = datetime.datetime.now()
         
         self._logger.info(f'Backup started at {run_time}')
         
@@ -60,7 +60,7 @@ class BackupRunner(Runner):
         await self._cleanup.run_job(f'remove_lock_{self._id}')
 
         finish_time = datetime.datetime.now()
-
+ 
         elapsed = finish_time - run_time
         elapsed_s = elapsed.total_seconds()
 

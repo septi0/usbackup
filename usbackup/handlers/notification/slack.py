@@ -1,3 +1,4 @@
+import datetime
 from usbackup.libraries.arequest import arequest_post
 from usbackup.models.result import ResultModel
 from usbackup.handlers.notification import HandlerBaseModel, NotificationHandler, NotificationHandlerError
@@ -18,7 +19,7 @@ class SlackHandler(NotificationHandler):
         
         self._slack_api_url = 'https://slack.com/api/files.upload'
 
-    async def notify(self, job_name: str, job_type: str, status: str, results: list[ResultModel]) -> None:
+    async def notify(self, status: str, results: list[ResultModel], *, elapsed: datetime.timedelta) -> None:
         details = [res.message for res in results if res.message]
         details = "\n".join(details)
 
@@ -29,7 +30,7 @@ class SlackHandler(NotificationHandler):
         params = {
             'channels': self._slack_channel,
             'filename': 'report.log',
-            'initial_comment': f'*{job_type.capitalize()} job "{job_name}" status: {status}*',
+            'initial_comment': f'*{self._type.capitalize()} job "{self._name}" status: {status}*',
         }
 
         files = {

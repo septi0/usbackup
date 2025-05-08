@@ -1,7 +1,6 @@
 import logging
 import asyncio
 import datetime
-import shlex
 import shelve
 from usbackup.libraries.cmd_exec import CmdExec
 from usbackup.libraries.cleanup_queue import CleanupQueue
@@ -33,10 +32,9 @@ class JobService:
         self._type: str = job.type
         self._schedule: str = job.schedule
         self._retention_policy: RetentionPolicyModel = job.retention_policy
-        self._notification_policy: str = job.notification_policy
         self._concurrency: int = job.concurrency
-        self._pre_run_cmd: list = shlex.split(job.pre_run_cmd) if job.pre_run_cmd else []
-        self._post_run_cmd: list = shlex.split(job.post_run_cmd) if job.post_run_cmd else []
+        self._pre_run_cmd: list = job.pre_run_cmd
+        self._post_run_cmd: list = job.post_run_cmd
 
     @property
     def name(self) -> str:
@@ -46,7 +44,9 @@ class JobService:
         tasks = []
         results = []
         
-        self._logger.info(f'Starting {self._type} job "{self._name}"')
+        run_time = datetime.datetime.now()
+        
+        self._logger.info(f'{self._type.capitalize()} job "{self._name}"  started at {run_time}')
         
         if self._pre_run_cmd:
             self._logger.info(f"Running pre run command")
@@ -70,11 +70,16 @@ class JobService:
         if self._post_run_cmd:
             self._logger.info(f"Running post run command")
             await CmdExec.exec(self._post_run_cmd)
+            
+        finish_time = datetime.datetime.now()
+ 
+        elapsed = finish_time - run_time
+        elapsed_s = elapsed.total_seconds()
                 
-        self._logger.info(f'{self._type} job "{self._name}" finished')
+        self._logger.info(f'{self._type.capitalize()} job "{self._name}" finished at {finish_time}. Elapsed time: {elapsed_s:.2f} seconds')
         
         # handle reporting
-        await self._notifier.notify(self._name, self._type, results, notification_policy=self._notification_policy)
+        await self._notifier.notify(results, elapsed=elapsed)
     
     async def _semaphore_task_runner(self, source: SourceModel, semaphore: asyncio.Semaphore) -> ResultModel:
         async with semaphore:
