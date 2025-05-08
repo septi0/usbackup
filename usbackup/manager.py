@@ -225,7 +225,7 @@ class UsBackupManager:
         return
 
     async def _do_run_forever(self) -> None:
-        self._datastore['last_service_run'] = datetime.datetime.now()
+        self._datastore['last_service_start'] = datetime.datetime.now()
         self._datastore.sync()
         
         job_models = self._model.jobs
@@ -288,6 +288,9 @@ class UsBackupManager:
             return
         
         self._logger.info(f"Running {len(tasks)} jobs")
+        
+        self._datastore['last_scheduled_run'] = datetime.datetime.now()
+        self._datastore.sync()
         
         if len(tasks) > 1:
             self._logger.warning('More than one job run concurrently. Performance may be degraded')
