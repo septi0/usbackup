@@ -4,9 +4,10 @@ import signal
 import yaml
 import datetime
 import asyncio
-import shelve
+import json
 from logging.handlers import TimedRotatingFileHandler
 from usbackup.libraries.cleanup_queue import CleanupQueue
+from usbackup.libraries.datastore import Datastore
 from usbackup.models.usbackup import UsBackupModel
 from usbackup.models.job import JobModel
 from usbackup.models.handler_base import HandlerBaseModel
@@ -25,13 +26,16 @@ class UsBackupManager:
         self._logger: logging.Logger = self._logger_factory(log_file, log_level)
         self._model: UsBackupModel = UsBackupModel(**self._load_config(file=config_file, alt_job=alt_job))
         self._cleanup: CleanupQueue = CleanupQueue()
-        self._datastore: shelve.Shelf = shelve.open(self._get_datastore_filepath(), writeback=True)
+        self._datastore: Datastore = Datastore(self._get_datastore_filepath())
 
     def run_once(self) -> None:
         return self._run_main(self._do_run_once)
     
     def run_forever(self) -> None:
         return self._run_main(self._do_run_forever)
+    
+    def stats(self, format: str) -> None:
+        return self._run_main(self._get_stats, format=format)
     
     def _load_config(self, *, file: str = None, alt_job: dict = None) -> str:
         config_files = [
@@ -162,8 +166,6 @@ class UsBackupManager:
     
     def _run_main(self, main_task, *args, **kwargs) -> any:
         output = None
-        
-        self._cleanup.add_job('close_datastore', self._datastore.close)
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -182,7 +184,7 @@ class UsBackupManager:
             try:
                 # run cleanup jobs before exiting
                 self._logger.info("Running cleanup jobs")
-                loop.run_until_complete(self._cleanup.run_jobs())
+                loop.run_until_complete(self._cleanup.consume_all())
                 
                 self._cancel_tasks(loop)
                 loop.run_until_complete(loop.shutdown_asyncgens())
@@ -215,8 +217,7 @@ class UsBackupManager:
                 })
                 
     async def _do_run_once(self) -> None:
-        self._datastore['last_manual_run'] = datetime.datetime.now()
-        self._datastore.sync()
+        self._datastore.set('last_manual_run', datetime.datetime.now())
         
         job = self._job_factory(self._model.jobs[0])
         
@@ -225,8 +226,7 @@ class UsBackupManager:
         return
 
     async def _do_run_forever(self) -> None:
-        self._datastore['last_service_start'] = datetime.datetime.now()
-        self._datastore.sync()
+        self._datastore.set('running', True)
         
         job_models = self._model.jobs
         
@@ -249,8 +249,9 @@ class UsBackupManager:
         with open(self._pid_filepath, 'w') as f:
             f.write(pid)
 
-        self._cleanup.add_job('remove_service_pid', os.remove, self._pid_filepath)
-        self._cleanup.add_job('log_service_pid_removal', self._logger.info, 'Shutting down service')
+        self._cleanup.push('remove_service_pid', os.remove, self._pid_filepath)
+        self._cleanup.push('set_running_state', self._datastore.set, 'running', False)
+        self._cleanup.push('log_service_shutdown', self._logger.info, 'Shutting down service')
 
         self._logger.info(f'Starting service with pid {pid}')
 
@@ -274,6 +275,26 @@ class UsBackupManager:
             self._logger.debug(f'Next run in {time_left} s')
 
             await asyncio.sleep(time_left)
+            
+    async def _get_stats(self, format: str) -> str:
+        backups = {}
+        
+        for name, backup in self._datastore.get('backups', {}).items():
+            backups[name] = {
+                'date': str(backup.date),
+                'elapsed': str(backup.elapsed),
+                'error': str(backup.error) if backup.error else None,
+                'dest': str(backup.dest),
+            }
+        
+        stats = {
+            'service_running': self._datastore.get('running', False),
+            'last_manual_run': str(self._datastore.get('last_manual_run', '')),
+            'last_scheduled_run': str(self._datastore.get('last_scheduled_run', '')),
+            'backups': backups,
+        }
+        
+        return self._format_stats(stats, format)
     
     async def _run_due_jobs(self, jobs: list[JobService]) -> None:
         tasks = []
@@ -289,8 +310,7 @@ class UsBackupManager:
         
         self._logger.info(f"Running {len(tasks)} jobs")
         
-        self._datastore['last_scheduled_run'] = datetime.datetime.now()
-        self._datastore.sync()
+        self._datastore.set('last_scheduled_run', datetime.datetime.now())
         
         if len(tasks) > 1:
             self._logger.warning('More than one job run concurrently. Performance may be degraded')
@@ -300,3 +320,31 @@ class UsBackupManager:
         for task in tasks:
             if isinstance(task.exception(), Exception):
                 self._logger.exception(task.exception())
+                
+    def _format_stats(self, stats: dict, format: str) -> str:
+        if format == 'json':
+            return json.dumps(stats)
+        
+        if format == 'text':
+            dictionary = {
+                'service_running': 'Service running',
+                'last_manual_run': 'Last manual run',
+                'last_scheduled_run': 'Last scheduled run',
+                'backups': 'Backups',
+            }
+            
+            output = []
+            output.append(f"{dictionary['service_running']}: {stats['service_running']}")
+            output.append(f"{dictionary['last_manual_run']}: {stats['last_manual_run']}")
+            output.append(f"{dictionary['last_scheduled_run']}: {stats['last_scheduled_run']}")
+            output.append(f"{dictionary['backups']}:")
+            output.append('  ' + '-' * 20)
+            for name, backup in stats['backups'].items():
+                output.append(f"  {name}:")
+                output.append(f"    date: {backup['date']}")
+                output.append(f"    elapsed: {backup['elapsed']}")
+                output.append(f"    error: {backup['error']}")
+                output.append(f"    dest: {backup['dest']}")
+            return '\n'.join(output)
+        
+        raise UsbackupRuntimeError(f"Unknown format {format}")

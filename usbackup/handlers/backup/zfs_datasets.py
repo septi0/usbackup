@@ -49,7 +49,7 @@ class ZfsDatasetsHandler(BackupHandler):
             self._logger.info(f'Creating snapshot "{zfs_snapshot_name}" on "{self._host}"')
             
             await CmdExec.exec(['zfs', 'snapshot', zfs_snapshot_name], host=self._host)
-            self._cleanup.add_job(f'destroy_snapshot_{self._id}', CmdExec.exec, ['zfs', 'destroy', zfs_snapshot_name], host=self._host)
+            self._cleanup.push(f'destroy_snapshot_{self._id}', CmdExec.exec, ['zfs', 'destroy', zfs_snapshot_name], host=self._host)
             
             async with FsAdapter.open(dest.join(file_name), 'wb') as f:
                 self._logger.info(f'Streaming snapshot "{zfs_snapshot_name}" from "{self._host}" to "{dest.path}"')
@@ -58,4 +58,4 @@ class ZfsDatasetsHandler(BackupHandler):
                 
             self._logger.info(f'Deleting snapshot "{zfs_snapshot_name}" on "{self._host}"')
             
-            await self._cleanup.run_job(f'destroy_snapshot_{self._id}')
+            await self._cleanup.consume(f'destroy_snapshot_{self._id}')

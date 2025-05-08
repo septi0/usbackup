@@ -1,9 +1,9 @@
 import logging
 import asyncio
 import datetime
-import shelve
 from usbackup.libraries.cmd_exec import CmdExec
 from usbackup.libraries.cleanup_queue import CleanupQueue
+from usbackup.libraries.datastore import Datastore
 from usbackup.models.job import JobModel
 from usbackup.models.retention_policy import RetentionPolicyModel
 from usbackup.models.result import ResultModel
@@ -18,13 +18,13 @@ from usbackup.exceptions import UsbackupRuntimeError
 __all__ = ['JobService']
 
 class JobService:
-    def __init__(self, job: JobModel, sources: list[SourceModel], replication_src: StorageModel, dest: StorageModel, *, cleanup: CleanupQueue, datastore: shelve.Shelf, notifier: NotifierService, logger: logging.Logger):
+    def __init__(self, job: JobModel, sources: list[SourceModel], replication_src: StorageModel, dest: StorageModel, *, cleanup: CleanupQueue, datastore: Datastore, notifier: NotifierService, logger: logging.Logger):
         self._sources: list[SourceModel] = sources
         self._replication_src: StorageModel = replication_src
         self._dest: StorageModel = dest
         
         self._cleanup: CleanupQueue = cleanup
-        self._datastore: shelve.Shelf = datastore
+        self._datastore: Datastore = datastore
         self._notifier: NotifierService = notifier
         self._logger: logging.Logger = logger
         
@@ -100,12 +100,11 @@ class JobService:
                 self._logger.exception(e)
                 result = ResultModel(context, error=e)
             
-            if not result.error and self._type == 'backup':
-                if not 'last_backup' in self._datastore:
-                    self._datastore['last_backup'] = {}
-                    
-                self._datastore['last_backup'][context.name] = result
-                self._datastore.sync()
+            if self._type == 'backup':
+                backups = self._datastore.get('backups', {})
+                backups[context.name] = result
+                
+                self._datastore.set('backups', backups)
             
             return result
     

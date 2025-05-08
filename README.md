@@ -97,12 +97,10 @@ options:
   --log LOG_FILE        Log file where to write logs
   --log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
                         Log level
-  --version             show program's version number and exit
+  --version             shows UsBackup version
 
 Commands:
   {configtest,du,backup}
-    configtest          Test configuration file
-
     daemon              Run as daemon and perform actions based on configured jobs
     
     run                 Run a job based on the provided paramaters
@@ -120,6 +118,12 @@ Commands:
                               Notification policy. Available options: never, always, on-failure. Default: always
         --concurrency CONCURRENCY
                               Concurrency. Number of concurrent hosts to backup. Default: 1
+
+    configtest         Test configuration file
+
+    stats              Show some stats
+      options:
+        --json      Output the stats in JSON format
 ```
 
 ## Configuration file

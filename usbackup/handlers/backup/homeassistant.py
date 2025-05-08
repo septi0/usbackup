@@ -30,7 +30,7 @@ class HomeassistantHandler(BackupHandler):
         
         slug = result['data']['slug']
         
-        self._cleanup.add_job(f'remove_backup_archive_{self._id}', CmdExec.exec, ['ha', 'backups', 'remove', slug], host=self._host)
+        self._cleanup.push(f'remove_backup_archive_{self._id}', CmdExec.exec, ['ha', 'backups', 'remove', slug], host=self._host)
 
         archive_path = PathModel(path=f'/root/backup/{slug}.tar', host=self._host)
 
@@ -40,4 +40,4 @@ class HomeassistantHandler(BackupHandler):
         
         self._logger.info(f'Deleting backup archive on "{self._host}"')
         
-        await self._cleanup.run_job(f'remove_backup_archive_{self._id}')
+        await self._cleanup.consume(f'remove_backup_archive_{self._id}')

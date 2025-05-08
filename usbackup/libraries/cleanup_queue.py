@@ -4,36 +4,48 @@ __all__ = ['CleanupQueue']
 
 class CleanupQueue:
     def __init__(self):
-        self._jobs: dict = {}
+        self._queue: list = []
 
-    def add_job(self, id: str, handler: callable, *args, **kwargs) -> None:
-        if id in self._jobs:
+    def push(self, id: str, handler: callable, *args, **kwargs) -> None:
+        if self._get_index(id):
             raise ValueError(f"Job with id {id} already exists")
         
-        self._jobs[id] = (handler, args, kwargs)
-
-    def remove_job(self, id: str) -> None:
-        if id not in self._jobs:
-            return
+        self._queue.append((id, handler, args, kwargs))
         
-        del self._jobs[id]
+    async def pop(self, id: str) -> None:
+        index = self._get_index(id)
+        
+        if not index:
+            raise ValueError(f"Job with id {id} not found")
+        
+        self._queue.pop(index)
     
-    async def run_job(self, id: str) -> None:
-        if id not in self._jobs:
-            raise ValueError(f"Job with id {id} does not exist")
+    async def consume(self, id: str) -> None:
+        index = self._get_index(id)
         
-        (handler, args, kwargs) = self._jobs[id]
+        if index is None:
+            raise ValueError(f"Job with id {id} not found")
         
+        (id, handler, args, kwargs) = self._queue.pop(index)
+        await self._execute(handler, *args, **kwargs)
+
+    async def consume_all(self) -> None:
+        if not self._queue:
+            return
+
+        while self._queue:
+            (id, handler, args, kwargs) = self._queue.pop()
+            await self._execute(handler, *args, **kwargs)
+            
+    def _get_index(self, id: str) -> int:
+        for index, job in enumerate(self._queue):
+            if job[0] == id:
+                return index
+        
+        return None
+    
+    async def _execute(self, handler: callable, *args, **kwargs) -> None:
         if asyncio.iscoroutinefunction(handler):
             await handler(*args, **kwargs)
         else:
             handler(*args, **kwargs)
-            
-        self.remove_job(id)
-
-    async def run_jobs(self) -> None:
-        if not self._jobs:
-            return
-        
-        for id in list(self._jobs.keys()):
-            await self.run_job(id)

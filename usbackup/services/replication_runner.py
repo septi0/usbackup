@@ -32,7 +32,7 @@ class ReplicationRunner(Runner):
         await self._context.ensure_destination()
             
         await self._context.create_lock_file()
-        self._cleanup.add_job(f'remove_lock_{self._id}', self._context.remove_lock_file)
+        self._cleanup.push(f'remove_lock_{self._id}', self._context.remove_lock_file)
 
         src = replicate_version.path
         dest = self._context.destination
@@ -51,7 +51,7 @@ class ReplicationRunner(Runner):
                 self._logger.exception(f'Failed to apply retention policy. {e}')
                 error = e
 
-        await self._cleanup.run_job(f'remove_lock_{self._id}')
+        await self._cleanup.consume(f'remove_lock_{self._id}')
 
         finish_time = datetime.datetime.now()
 

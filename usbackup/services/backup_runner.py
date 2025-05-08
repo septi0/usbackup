@@ -36,7 +36,7 @@ class BackupRunner(Runner):
         version = await self._context.generate_version()
             
         await self._context.create_lock_file()
-        self._cleanup.add_job(f'remove_lock_{self._id}', self._context.remove_lock_file)
+        self._cleanup.push(f'remove_lock_{self._id}', self._context.remove_lock_file)
         
         dest = version.path
         dest_link = latest_version.path if latest_version else None
@@ -57,7 +57,7 @@ class BackupRunner(Runner):
                 self._logger.exception(f'Failed to apply retention policy. {e}')
                 error = e
 
-        await self._cleanup.run_job(f'remove_lock_{self._id}')
+        await self._cleanup.consume(f'remove_lock_{self._id}')
 
         finish_time = datetime.datetime.now()
  

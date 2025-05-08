@@ -19,7 +19,7 @@ class OpenwrtHandler(BackupHandler):
         
         archive_path = PathModel(path='/tmp/archive.tar.gz', host=self._host)
         
-        self._cleanup.add_job(f'remove_backup_archive_{self._id}', FsAdapter.rm, archive_path)
+        self._cleanup.push(f'remove_backup_archive_{self._id}', FsAdapter.rm, archive_path)
 
         self._logger.info(f'Copying "{archive_path}" to "{dest.path}"')
         
@@ -27,4 +27,4 @@ class OpenwrtHandler(BackupHandler):
         
         self._logger.info(f'Deleting backup archive on "{self._host}"')
         
-        await self._cleanup.run_job(f'remove_backup_archive_{self._id}')
+        await self._cleanup.consume(f'remove_backup_archive_{self._id}')
