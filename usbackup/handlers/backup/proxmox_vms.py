@@ -65,6 +65,7 @@ class ProxmoxVmsHandler(BackupHandler):
         cmd_options = [
             ('mode', self._mode),
             ('compress', self._compress),
+            ('notification-mode', 'legacy-sendmail'),
             ('notification-policy', 'never'),
             'stdout',
             'quiet',
