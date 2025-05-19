@@ -95,7 +95,7 @@ class Runner:
         protected = []
         
         for category, attr in categories.items():
-            self._logger.debug(f'{category} protected versions: {attr["versions"]}')
+            if attr["versions"]: self._logger.info(f'{category} protected versions: {attr["versions"]}')
             protected += attr['versions']
             
         # always protect latest version
