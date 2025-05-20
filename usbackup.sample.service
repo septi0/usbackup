@@ -1,15 +1,17 @@
 [Unit]
-Description=UsBackup
+Description=usbackup
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
 
 [Service]
 Type=simple
 User=root
 Group=root
-ExecStart=/usr/bin/usbackup --log=/var/log/usbackup/usbackup.log --log-level=INFO daemon
+ExecStart=/bin/usbackup --log=/var/log/usbackup/backup.log --log-level=INFO daemon
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=3
 
 [Install]
 WantedBy=multi-user.target
