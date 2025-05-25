@@ -6,7 +6,10 @@ class Datastore:
 
     def get(self, key: str, default: any = None):
         with shelve.open(self._filename) as db:
-            return db.get(key, default)
+            if key in db:
+                return db[key]
+            else:
+                return default
         
     def set(self, key: str, value):
         with shelve.open(self._filename) as db:
