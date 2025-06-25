@@ -14,7 +14,7 @@ from usbackup.models.handler_base import HandlerBaseModel
 from usbackup.services.job import JobService
 from usbackup.services.context import ContextService
 from usbackup.services.notifier import NotifierService
-from usbackup.exceptions import UsbackupRuntimeError, GracefulExit
+from usbackup.exceptions import UsBackupRuntimeError, GracefulExit
 from usbackup.handlers import handler_factory
 
 __all__ = ['UsBackupManager']
@@ -55,13 +55,13 @@ class UsBackupManager:
                 break
        
         if not file_to_load:
-            raise UsbackupRuntimeError("No config file found")
+            raise UsBackupRuntimeError("No config file found")
         
         with open(file_to_load, 'r') as f:
             try:
                 config = yaml.safe_load(f)
             except yaml.YAMLError as e:
-                raise UsbackupRuntimeError(f"Failed to parse config file: {e}")
+                raise UsBackupRuntimeError(f"Failed to parse config file: {e}")
             
         if alt_job:
             # convert retention_policy to dict
@@ -142,12 +142,12 @@ class UsBackupManager:
             source_models = [source for source in source_models if source.name not in model.exclude]
             
         if not source_models:
-            raise UsbackupRuntimeError("No sources left to backup after limit/exclude filters")
+            raise UsBackupRuntimeError("No sources left to backup after limit/exclude filters")
         
         dest = next((storage for storage in self._model.storages if storage.name == model.dest), None)
         
         if not dest:
-            raise UsbackupRuntimeError(f"Job {model.name} has inexistent destination storage")
+            raise UsBackupRuntimeError(f"Job {model.name} has inexistent destination storage")
         
         replication_src = None
         
@@ -155,7 +155,7 @@ class UsBackupManager:
             replication_src = next((storage for storage in self._model.storages if storage.name == model.replicate), None)
             
             if not replication_src:
-                raise UsbackupRuntimeError(f"Job {model.name} has inexistent replication storage")
+                raise UsBackupRuntimeError(f"Job {model.name} has inexistent replication storage")
             
         notifier = self._notifier_factory(model, self._model.notifiers)
 
@@ -347,4 +347,4 @@ class UsBackupManager:
                 output.append(f"    dest: {backup['dest']}")
             return '\n'.join(output)
         
-        raise UsbackupRuntimeError(f"Unknown format {format}")
+        raise UsBackupRuntimeError(f"Unknown format {format}")

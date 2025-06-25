@@ -1,4 +1,4 @@
 class GracefulExit(SystemExit):
     code = 1
-class UsbackupRuntimeError(Exception):
+class UsBackupRuntimeError(Exception):
     pass

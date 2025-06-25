@@ -9,7 +9,7 @@ from usbackup.models.result import ResultModel
 from usbackup.models.path import PathModel
 from usbackup.services.runner import Runner
 from usbackup.services.context import ContextService
-from usbackup.exceptions import UsbackupRuntimeError
+from usbackup.exceptions import UsBackupRuntimeError
 from usbackup.handlers import handler_factory
 
 __all__ = ['Runner']
@@ -20,11 +20,11 @@ class BackupRunner(Runner):
         
     async def run(self) -> None:
         if await self._context.lock_file_exists():
-            raise UsbackupRuntimeError(f'Backup already running')
+            raise UsBackupRuntimeError(f'Backup already running')
         
         # test connection to host
         if not await CmdExec.is_host_reachable(self._context.host):
-            raise UsbackupRuntimeError(f'Host" {self._context.host}" is not reachable')
+            raise UsBackupRuntimeError(f'Host" {self._context.host}" is not reachable')
         
         run_time = datetime.datetime.now()
         

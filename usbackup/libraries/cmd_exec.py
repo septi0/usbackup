@@ -3,7 +3,7 @@ import asyncio
 import shlex
 from usbackup.models.host import HostModel
 
-__all__ = ['CmdExec', 'CmdExecError']
+__all__ = ['CmdExec', 'CmdExecError', 'CmdExecProcessError']
 
 class CmdExecError(Exception):
     pass

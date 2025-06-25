@@ -7,7 +7,7 @@ from usbackup.models.version import BackupVersionModel
 from usbackup.models.retention_policy import RetentionPolicyModel
 from usbackup.services.context import ContextService
 from usbackup.utils.logging import NoExceptionFormatter
-from usbackup.exceptions import UsbackupRuntimeError
+from usbackup.exceptions import UsBackupRuntimeError
 
 __all__ = ['Runner']
 
@@ -25,7 +25,7 @@ class Runner:
         # bind stream to logger
         stream_handler = logging.StreamHandler(self._log_stream)
         stream_handler.setFormatter(NoExceptionFormatter('%(asctime)s - %(message)s'))
-        logger.addHandler(stream_handler)
+        self._logger.addHandler(stream_handler)
     
     async def apply_retention_policy(self) -> int:
         if not self._retention_policy:
@@ -43,7 +43,7 @@ class Runner:
         versions_cnt = len(protected)
         
         if not versions_cnt:
-            raise UsbackupRuntimeError(f'No protected versions generated. Pruning not possible')
+            raise UsBackupRuntimeError(f'No protected versions generated. Pruning not possible')
         
         # exclude protected versions from the list
         prune = [version for version in versions if version.version not in protected]

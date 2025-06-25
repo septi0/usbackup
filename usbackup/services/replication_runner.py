@@ -8,7 +8,7 @@ from usbackup.models.result import ResultModel
 from usbackup.models.path import PathModel
 from usbackup.services.runner import Runner
 from usbackup.services.context import ContextService
-from usbackup.exceptions import UsbackupRuntimeError
+from usbackup.exceptions import UsBackupRuntimeError
 
 __all__ = ['Runner']
 
@@ -20,12 +20,12 @@ class ReplicationRunner(Runner):
         run_time = datetime.datetime.now()
         
         if await self._context.lock_file_exists():
-            raise UsbackupRuntimeError(f'Replication already running')
+            raise UsBackupRuntimeError(f'Replication already running')
         
         replicate_version = await replicate_context.get_latest_version()
         
         if not replicate_version:
-            raise UsbackupRuntimeError(f'No backup version found to replicate')
+            raise UsBackupRuntimeError(f'No backup version found to replicate')
         
         self._logger.info(f'Replication started at {run_time}')
         

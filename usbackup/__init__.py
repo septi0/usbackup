@@ -3,6 +3,7 @@ import argparse
 import datetime
 from pydantic import ValidationError
 from usbackup.manager import UsBackupManager
+from usbackup.exceptions import UsBackupRuntimeError
 from usbackup.info import __app_name__, __version__, __description__, __author__, __author_email__, __author_url__, __license__
 
 def main():

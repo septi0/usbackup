@@ -13,7 +13,7 @@ from usbackup.services.context import ContextService
 from usbackup.services.backup_runner import BackupRunner
 from usbackup.services.replication_runner import ReplicationRunner
 from usbackup.services.notifier import NotifierService
-from usbackup.exceptions import UsbackupRuntimeError
+from usbackup.exceptions import UsBackupRuntimeError
 
 __all__ = ['JobService']
 
@@ -105,6 +105,8 @@ class JobService:
                 backups[context.name] = result
                 
                 self._datastore.set('backups', backups)
+                
+            logger.handlers.clear()
             
             return result
     
