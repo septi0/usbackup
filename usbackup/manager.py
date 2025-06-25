@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import signal
 import yaml
@@ -28,12 +29,15 @@ class UsBackupManager:
         self._datastore: Datastore = Datastore(self._get_datastore_filepath())
 
     def run_once(self) -> None:
+        """ Run the backup job once, without scheduling."""
         return self._run_main(self._do_run_once)
     
     def run_forever(self) -> None:
+        """ Run the backup job forever, scheduling it every minute."""
         return self._run_main(self._do_run_forever)
     
     def stats(self, format: str) -> None:
+        """ Get the current stats of the backup service."""
         return self._run_main(self._get_stats, format=format)
     
     def _load_config(self, *, file: str | None = None, alt_job: dict | None = None) -> dict:
@@ -78,12 +82,17 @@ class UsBackupManager:
         else:
             return os.path.expanduser('~/.usbackup.pid')
         
+    def _is_venv(self) -> bool:
+        return sys.prefix != getattr(sys, 'base_prefix', sys.prefix)
+        
     def _get_datastore_filepath(self) -> str:
-        if os.getuid() == 0:
-            filepath = '/var/opt/usbackup/usbackup.db'
+        if self._is_venv():
+            filepath = os.path.join(sys.prefix, 'var', 'data.db')
+        elif os.getuid() == 0:
+            filepath = '/var/lib/usbackup/data.db'
         else:
-            filepath = os.path.expanduser('~/.usbackup/usbackup.db')
-            
+            filepath = os.path.expanduser(f'~/.usbackup/data.db')
+
         directory = os.path.dirname(filepath)
         
         if not os.path.exists(directory):
