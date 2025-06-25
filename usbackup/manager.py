@@ -12,15 +12,14 @@ from usbackup.models.usbackup import UsBackupModel
 from usbackup.models.job import JobModel
 from usbackup.models.handler_base import HandlerBaseModel
 from usbackup.services.job import JobService
-from usbackup.services.context import ContextService
 from usbackup.services.notifier import NotifierService
 from usbackup.exceptions import UsBackupRuntimeError, GracefulExit
-from usbackup.handlers import handler_factory
+from typing import Any
 
 __all__ = ['UsBackupManager']
 
 class UsBackupManager:
-    def __init__(self, *, log_file: str = None, log_level: str = None, config_file: str = None, alt_job: dict = None) -> None:
+    def __init__(self, *, log_file: str | None = None, log_level: str | None = None, config_file: str | None = None, alt_job: dict | None = None) -> None:
         self._pid_filepath: str = self._get_pid_filepath()
 
         self._logger: logging.Logger = self._logger_factory(log_file, log_level)
@@ -37,7 +36,7 @@ class UsBackupManager:
     def stats(self, format: str) -> None:
         return self._run_main(self._get_stats, format=format)
     
-    def _load_config(self, *, file: str = None, alt_job: dict = None) -> str:
+    def _load_config(self, *, file: str | None = None, alt_job: dict | None = None) -> dict:
         config_files = [
             '/etc/usbackup/config.yml',
             '/etc/opt/usbackup/config.yml',
@@ -92,7 +91,7 @@ class UsBackupManager:
             
         return filepath
     
-    def _logger_factory(self, log_file: str, log_level: str) -> logging.Logger:
+    def _logger_factory(self, log_file: str | None, log_level: str | None) -> logging.Logger:
         levels = {
             "DEBUG": logging.DEBUG,
             "INFO": logging.INFO,
@@ -164,7 +163,7 @@ class UsBackupManager:
     def _sigterm_handler(self) -> None:
         raise GracefulExit
     
-    def _run_main(self, main_task, *args, **kwargs) -> any:
+    def _run_main(self, main_task, *args, **kwargs) -> Any:
         output = None
 
         loop = asyncio.new_event_loop()

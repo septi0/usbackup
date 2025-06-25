@@ -17,7 +17,7 @@ class ZfsDatasetsHandler(BackupHandler):
         self._limit: list[str] = model.limit
         self._exclude: list[str] = model.exclude
 
-    async def backup(self, dest: PathModel, dest_link: PathModel = None) -> None:
+    async def backup(self, dest: PathModel, dest_link: PathModel | None = None) -> None:
         self._logger.info(f'Fetching datasets from "{self._host}"')
         
         exec_ret = await CmdExec.exec(['zfs', 'list', '-H', '-o', 'name'], host=self._host)

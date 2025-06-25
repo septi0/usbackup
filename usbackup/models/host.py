@@ -14,9 +14,9 @@ Allwed remote formats:
 
 class HostModel(BaseModel):
     host: str
-    user: str = 'root'
-    password: str = None
-    port: int = 22
+    user: str | None = None
+    password: str | None = None
+    port: int | None = None
     local: bool
     
     model_config = ConfigDict(extra='forbid')

@@ -13,10 +13,10 @@ from usbackup.exceptions import UsBackupRuntimeError
 __all__ = ['Runner']
 
 class ReplicationRunner(Runner):
-    def __init__(self, context: ContextService, retention_policy: RetentionPolicyModel, *, cleanup: CleanupQueue, logger: logging.Logger) -> None:
+    def __init__(self, context: ContextService, retention_policy: RetentionPolicyModel | None, *, cleanup: CleanupQueue, logger: logging.Logger) -> None:
         super().__init__(context, retention_policy, cleanup=cleanup, logger=logger)
         
-    async def run(self, replicate_context: ContextService) -> None:
+    async def run(self, replicate_context: ContextService) -> ResultModel:
         run_time = datetime.datetime.now()
         
         if await self._context.lock_file_exists():
@@ -60,7 +60,7 @@ class ReplicationRunner(Runner):
 
         self._logger.info(f'Replication finished at {finish_time}. Elapsed time: {elapsed_s:.2f} seconds')
         
-        return ResultModel(self._context, message=self._log_stream.getvalue(), error=error, elapsed=elapsed)
+        return ResultModel(self._context, error=error, elapsed=elapsed)
     
     async def _run_replication(self, source: PathModel, dest: PathModel) -> None:
         options = [

@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import datetime
+import io
 from usbackup.libraries.cmd_exec import CmdExec
 from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.libraries.datastore import Datastore
@@ -14,13 +15,14 @@ from usbackup.services.backup_runner import BackupRunner
 from usbackup.services.replication_runner import ReplicationRunner
 from usbackup.services.notifier import NotifierService
 from usbackup.exceptions import UsBackupRuntimeError
+from usbackup.utils.logging import NoExceptionFormatter
 
 __all__ = ['JobService']
 
 class JobService:
-    def __init__(self, job: JobModel, sources: list[SourceModel], replication_src: StorageModel, dest: StorageModel, *, cleanup: CleanupQueue, datastore: Datastore, notifier: NotifierService, logger: logging.Logger):
+    def __init__(self, job: JobModel, sources: list[SourceModel], replication_src: StorageModel | None, dest: StorageModel, *, cleanup: CleanupQueue, datastore: Datastore, notifier: NotifierService, logger: logging.Logger):
         self._sources: list[SourceModel] = sources
-        self._replication_src: StorageModel = replication_src
+        self._replication_src: StorageModel | None = replication_src
         self._dest: StorageModel = dest
         
         self._cleanup: CleanupQueue = cleanup
@@ -31,10 +33,10 @@ class JobService:
         self._name: str = job.name
         self._type: str = job.type
         self._schedule: str = job.schedule
-        self._retention_policy: RetentionPolicyModel = job.retention_policy
+        self._retention_policy: RetentionPolicyModel | None = job.retention_policy
         self._concurrency: int = job.concurrency
-        self._pre_run_cmd: list = job.pre_run_cmd
-        self._post_run_cmd: list = job.post_run_cmd
+        self._pre_run_cmd: list | None = job.pre_run_cmd
+        self._post_run_cmd: list | None = job.post_run_cmd
 
     @property
     def name(self) -> str:
@@ -84,6 +86,14 @@ class JobService:
     async def _semaphore_task_runner(self, source: SourceModel, semaphore: asyncio.Semaphore) -> ResultModel:
         async with semaphore:
             logger = self._logger.getChild(source.name)
+            
+            log_stream = io.StringIO()
+            # bind stream to logger
+            stream_handler = logging.StreamHandler(log_stream)
+            stream_handler.setFormatter(NoExceptionFormatter('%(asctime)s - %(message)s'))
+            
+            logger.addHandler(stream_handler)
+            
             context = ContextService(source, self._dest, logger=logger)
             
             try:
@@ -93,6 +103,9 @@ class JobService:
                     result = await runner.run()
                 elif self._type == 'replication':
                     runner = ReplicationRunner(context, self._retention_policy, cleanup=self._cleanup, logger=logger)
+                    
+                    if not self._replication_src:
+                        raise UsBackupRuntimeError(f"Replication source is not set for job {self._name}")
                     
                     replicate_context = ContextService(source, self._replication_src, logger=logger)
                     result = await runner.run(replicate_context)
@@ -106,7 +119,10 @@ class JobService:
                 
                 self._datastore.set('backups', backups)
                 
-            logger.handlers.clear()
+            result.set_message(log_stream.getvalue())
+                
+            logger.removeHandler(stream_handler)
+            log_stream.close()
             
             return result
     

@@ -11,7 +11,7 @@ class TruenasHandler(BackupHandler):
     def __init__(self, model: TruenasHandlerModel, *args, **kwargs) -> None:
         super().__init__(model, *args, **kwargs)
 
-    async def backup(self, dest: PathModel, dest_link: PathModel = None) -> None:
+    async def backup(self, dest: PathModel, dest_link: PathModel | None = None) -> None:
         self._logger.info(f'Copying config files from "{self._host}" to "{dest.path}"')
         
         db_path = PathModel(path='/data/freenas-v1.db', host=self._host)

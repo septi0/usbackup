@@ -16,7 +16,7 @@ class NotifierService:
         self._type: str = job.type
         self._notification_policy: str = job.notification_policy
 
-    async def notify(self, results: list[ResultModel], *, elapsed: datetime.timedelta = None) -> None:
+    async def notify(self, results: list[ResultModel], *, elapsed: datetime.timedelta | None = None) -> None:
         errors = any(result.error for result in results)
         status = 'ok' if not errors else 'failed'
         

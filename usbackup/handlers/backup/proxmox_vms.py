@@ -8,7 +8,7 @@ class ProxmoxVmsHandlerModel(HandlerBaseModel):
     handler: str = 'proxmox_vms'
     limit: list[int] = []
     exclude: list[int] = []
-    bwlimit: int = None
+    bwlimit: int | None = None
     mode: Literal['snapshot', 'suspend', 'stop'] = 'snapshot'
     compress: Literal['zstd', 'gzip', 'lzo', 'none'] = 'zstd'
 
@@ -20,7 +20,7 @@ class ProxmoxVmsHandler(BackupHandler):
         
         self._limit: list[int] = model.limit
         self._exclude: list[int] = model.exclude
-        self._bwlimit: str = model.bwlimit
+        self._bwlimit: int | None = model.bwlimit
         self._mode: str = model.mode
         self._compress: str = model.compress
 
@@ -31,7 +31,7 @@ class ProxmoxVmsHandler(BackupHandler):
             'none': 'vma',
         }
 
-    async def backup(self, dest: PathModel, dest_link: str = PathModel) -> None:
+    async def backup(self, dest: PathModel, dest_link: PathModel | None) -> None:
         self._logger.info(f'Fetching VM list from "{self._host}"')
         
         try:

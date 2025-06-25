@@ -15,10 +15,10 @@ from usbackup.handlers import handler_factory
 __all__ = ['Runner']
 
 class BackupRunner(Runner):
-    def __init__(self, context: ContextService, retention_policy: RetentionPolicyModel, *, cleanup: CleanupQueue, logger: logging.Logger) -> None:
+    def __init__(self, context: ContextService, retention_policy: RetentionPolicyModel | None, *, cleanup: CleanupQueue, logger: logging.Logger) -> None:
         super().__init__(context, retention_policy, cleanup=cleanup, logger=logger)
         
-    async def run(self) -> None:
+    async def run(self) -> ResultModel:
         if await self._context.lock_file_exists():
             raise UsBackupRuntimeError(f'Backup already running')
         
@@ -66,9 +66,9 @@ class BackupRunner(Runner):
 
         self._logger.info(f'Backup finished at {finish_time}. Elapsed time: {elapsed_s:.2f} seconds')
         
-        return ResultModel(self._context, message=self._log_stream.getvalue(), error=error, elapsed=elapsed)
+        return ResultModel(self._context, error=error, elapsed=elapsed)
     
-    async def _run_backup_handlers(self, dest: PathModel, dest_link: PathModel = None) -> None:
+    async def _run_backup_handlers(self, dest: PathModel, dest_link: PathModel | None = None) -> None:
         for handler_model in self._context.handlers:
             handler_logger = self._logger.getChild(handler_model.handler)
             

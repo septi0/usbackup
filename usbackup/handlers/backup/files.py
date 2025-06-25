@@ -11,7 +11,7 @@ class FilesHandlerModel(HandlerBaseModel):
     handler: str = 'files'
     limit: list[str] = []
     exclude: list[str] = []
-    bwlimit: int = None
+    bwlimit: int | None = None
     mode: Literal['incremental', 'archive', 'full'] = 'incremental'
 
 class FilesHandler(BackupHandler):
@@ -22,10 +22,10 @@ class FilesHandler(BackupHandler):
         
         self._src_paths: list[PathModel] = self._gen_backup_src(model.limit, self._host)
         self._exclude: list[str] = model.exclude
-        self._bwlimit: str = model.bwlimit
+        self._bwlimit: int | None = model.bwlimit
         self._mode: str = model.mode
 
-    async def backup(self, dest: PathModel, dest_link: PathModel = None) -> list:
+    async def backup(self, dest: PathModel, dest_link: PathModel | None = None) -> None:
         if self._mode == 'incremental':
             self._logger.info('Using incremental backup mode')
 
@@ -60,9 +60,9 @@ class FilesHandler(BackupHandler):
 
         return src_paths
     
-    async def _backup_rsync(self, dest: PathModel, dest_link: PathModel = None) -> None:
+    async def _backup_rsync(self, dest: PathModel, dest_link: PathModel | None = None) -> None:
         for src in self._src_paths:
-            options = [
+            options: list[str | tuple] = [
                 'archive',
                 'hard-links',
                 'acls',

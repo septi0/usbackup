@@ -2,6 +2,7 @@ import aiofiles
 from contextlib import asynccontextmanager
 from usbackup.libraries.cmd_exec import CmdExec, CmdExecProcessError
 from usbackup.models.path import PathModel
+from typing import Literal
 
 __all__ = ['FsAdapter', 'FsAdapterError']
 
@@ -46,7 +47,7 @@ class FsAdapter:
         await CmdExec.exec(["touch", path.path], host=path.host)
     
     @classmethod
-    async def exists(cls, path: PathModel, type: str = None) -> bool:
+    async def exists(cls, path: PathModel, type: str | None = None) -> bool:
         """
         Check if a file or directory exists at the specified path.
         """
@@ -64,7 +65,7 @@ class FsAdapter:
         return True
     
     @classmethod
-    async def rsync(cls, src: PathModel, dst: PathModel, *, options: dict = {}) -> str:
+    async def rsync(cls, src: PathModel, dst: PathModel, *, options: list = []) -> str:
         """
         Copy a file or directory from src to dst using rsync.
         """
@@ -140,14 +141,14 @@ class FsAdapter:
     
     @classmethod
     @asynccontextmanager
-    async def open(cls, path: PathModel, mode: str = 'r'):
+    async def open(cls, path: PathModel, mode: Literal["r", "w", "x", "a", "r+", "w+", "x+", "a+"] = 'r'):
         """
         Async context manager that opens a file using aiofiles.
         """
         if not path.host.local:
             raise FsAdapterError("Local files only")
         
-        f = await aiofiles.open(path.path, mode=mode)
+        f = await aiofiles.open(path.path, mode)
         try:
             yield f
         finally:

@@ -43,7 +43,7 @@ class ContextService:
         
         return self._versions
     
-    async def get_latest_version(self) -> BackupVersionModel:
+    async def get_latest_version(self) -> BackupVersionModel | None:
         await self._ensure_versions_cache()
         
         if not self._versions:

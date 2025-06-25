@@ -12,7 +12,7 @@ class OpenwrtHandler(BackupHandler):
     def __init__(self, model: OpenwrtHandlerModel, *args, **kwargs) -> None:
         super().__init__(model, *args, **kwargs)
 
-    async def backup(self, dest: PathModel, dest_link: PathModel = None) -> None:
+    async def backup(self, dest: PathModel, dest_link: PathModel | None = None) -> None:
         self._logger.info(f'Generating backup archive "/tmp/archive.tar.gz" on "{self._host}"')
         
         await CmdExec.exec(['sysupgrade', '-b', '/tmp/archive.tar.gz'], host=self._host)

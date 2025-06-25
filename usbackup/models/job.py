@@ -10,12 +10,12 @@ class JobModel(BaseModel):
     limit: list[str] = []
     exclude: list[str] = []
     schedule: str = Field('0 0 * * *', pattern=r'^(\*|(\d+|\*\/\d+|\d+-\d+|\d+(,\d+)*))(\s+(\*|(\d+|\*\/\d+|\d+-\d+|\d+(,\d+)*))){4}$')
-    retention_policy: RetentionPolicyModel = None
+    retention_policy: RetentionPolicyModel | None = None
     notification_policy: Literal['never', 'always', 'on-failure'] = 'always'
     concurrency: int = Field(1, ge=1)
-    pre_run_cmd: list = None
-    post_run_cmd: list = None
-    replicate: str = None
+    pre_run_cmd: list | None = None
+    post_run_cmd: list | None = None
+    replicate: str | None = None
 
     model_config = ConfigDict(extra='forbid')
 

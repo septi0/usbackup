@@ -8,7 +8,7 @@ from usbackup.models.handler_base import HandlerBaseModel
 __all__ = ['NotificationHandler', 'NotificationHandlerError']
 
 class NotificationHandler(ABC):
-    handler: str = None
+    handler: str | None = None
 
     def __init__(self, model: HandlerBaseModel, name: str, type: str, *, logger: logging.Logger):
         self._name: str = name

@@ -13,7 +13,7 @@ class HomeassistantHandler(BackupHandler):
     def __init__(self, model: HomeassistantHandlerModel, *args, **kwargs) -> None:
         super().__init__(model, *args, **kwargs)
 
-    async def backup(self, dest: PathModel, dest_link: PathModel = None) -> None:
+    async def backup(self, dest: PathModel, dest_link: PathModel | None = None) -> None:
         self._logger.info(f'Generating backup archive on "{self._host}"')
         
         result = await CmdExec.exec(['ha', 'backups', 'new', '--name', 'usbackup', '--raw-json', '--no-progress'], host=self._host)

@@ -9,7 +9,7 @@ from usbackup.models.path import PathModel
 __all__ = ['BackupHandler', 'BackupHandlerError']
 
 class BackupHandler(ABC):
-    handler: str = None
+    handler: str | None = None
     
     def __init__(self, model: HandlerBaseModel, host: HostModel, *, cleanup: CleanupQueue, logger: logging.Logger):
         self._host: HostModel = host
@@ -20,7 +20,7 @@ class BackupHandler(ABC):
         self._id: str = str(uuid.uuid4())
 
     @abstractmethod
-    async def backup(self, backup_dst: PathModel, backup_dst_link: str = PathModel) -> None:
+    async def backup(self, backup_dst: PathModel, backup_dst_link: PathModel | None = None) -> None:
         pass
     
 class BackupHandlerError(Exception):

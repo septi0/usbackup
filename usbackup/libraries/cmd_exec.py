@@ -9,13 +9,13 @@ class CmdExecError(Exception):
     pass
 
 class CmdExecProcessError(Exception):
-    def __init__(self, message, code = 0):
+    def __init__(self, message: str, code: int | None = 0):
         super().__init__(message)
         self.code = code
 
 class CmdExec:
     @classmethod
-    async def exec(cls, cmd: list, *, host: HostModel = None, input: str = None, env=None, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE) -> str:
+    async def exec(cls, cmd: list, *, host: HostModel | None = None, input: str | None = None, env=None, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE) -> str:
         if host and not host.local:
             cmd = cls.gen_ssh_cmd(cmd, host)
         
@@ -26,7 +26,7 @@ class CmdExec:
 
         process = await asyncio.create_subprocess_exec(*cmd, stdin=stdin, stdout=stdout, stderr=stderr, env=env)
 
-        if input:
+        if input and process.stdin is not None:
             process.stdin.write(input.encode('utf-8'))
             process.stdin.close()
 
@@ -67,7 +67,8 @@ class CmdExec:
 
         return cmd_options
     
-    def gen_ssh_cmd(cmd: list, host: HostModel) -> list:
+    @classmethod
+    def gen_ssh_cmd(cls, cmd: list, host: HostModel) -> list:
         if not cmd or not host:
             raise CmdExecError("Command or host not specified")
 
@@ -82,5 +83,10 @@ class CmdExec:
 
         if host.port:
             ssh_opts += ['-p', str(host.port)]
+ 
+        remote = host.host
+        
+        if host.user is not None:
+            remote = f"{host.user}@{remote}"
             
-        return [*cmd_prefix, 'ssh', *ssh_opts, f'{host.user}@{host.host}', 'exec', shlex.join(cmd)]
+        return [*cmd_prefix, 'ssh', *ssh_opts, remote, 'exec', shlex.join(cmd)]

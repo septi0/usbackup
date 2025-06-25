@@ -1,4 +1,5 @@
 import asyncio
+from typing import Callable
 
 __all__ = ['CleanupQueue']
 
@@ -6,7 +7,7 @@ class CleanupQueue:
     def __init__(self):
         self._queue: list = []
 
-    def push(self, id: str, handler: callable, *args, **kwargs) -> None:
+    def push(self, id: str, handler: Callable, *args, **kwargs) -> None:
         if self._get_index(id):
             raise ValueError(f"Job with id {id} already exists")
         
@@ -37,14 +38,14 @@ class CleanupQueue:
             (id, handler, args, kwargs) = self._queue.pop()
             await self._execute(handler, *args, **kwargs)
             
-    def _get_index(self, id: str) -> int:
+    def _get_index(self, id: str) -> int | None:
         for index, job in enumerate(self._queue):
             if job[0] == id:
                 return index
         
         return None
     
-    async def _execute(self, handler: callable, *args, **kwargs) -> None:
+    async def _execute(self, handler: Callable, *args, **kwargs) -> None:
         if asyncio.iscoroutinefunction(handler):
             await handler(*args, **kwargs)
         else:

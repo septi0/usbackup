@@ -12,20 +12,14 @@ from usbackup.exceptions import UsBackupRuntimeError
 __all__ = ['Runner']
 
 class Runner:
-    def __init__(self, context: ContextService, retention_policy: RetentionPolicyModel, *, cleanup: CleanupQueue, logger: logging.Logger) -> None:
+    def __init__(self, context: ContextService, retention_policy: RetentionPolicyModel | None, *, cleanup: CleanupQueue, logger: logging.Logger) -> None:
         self._context: ContextService = context
-        self._retention_policy: RetentionPolicyModel = retention_policy
+        self._retention_policy: RetentionPolicyModel | None = retention_policy
         
         self._cleanup: CleanupQueue = cleanup
         self._logger: logging.Logger = logger
         
-        self._log_stream: io.StringIO = io.StringIO()
         self._id: str = str(uuid.uuid4())
-        
-        # bind stream to logger
-        stream_handler = logging.StreamHandler(self._log_stream)
-        stream_handler.setFormatter(NoExceptionFormatter('%(asctime)s - %(message)s'))
-        self._logger.addHandler(stream_handler)
     
     async def apply_retention_policy(self) -> int:
         if not self._retention_policy:
@@ -106,6 +100,3 @@ class Runner:
         protected.sort()
                 
         return protected
-    
-    def __del__(self) -> None:
-        self._log_stream.close()
