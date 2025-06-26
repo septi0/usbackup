@@ -51,7 +51,7 @@ class ZfsDatasetsHandler(BackupHandler):
             await CmdExec.exec(['zfs', 'snapshot', zfs_snapshot_name], host=self._host)
             self._cleanup.push(f'destroy_snapshot_{self._id}', CmdExec.exec, ['zfs', 'destroy', zfs_snapshot_name], host=self._host)
             
-            async with FsAdapter.open(dest.join(file_name), 'wb') as f:
+            with FsAdapter.open(dest.join(file_name), 'wb') as f:
                 self._logger.info(f'Streaming snapshot "{zfs_snapshot_name}" from "{self._host}" to "{dest.path}"')
                 
                 await CmdExec.exec(['zfs', 'send', zfs_snapshot_name], stdout=f, host=self._host)

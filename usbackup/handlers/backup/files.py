@@ -102,7 +102,7 @@ class FilesHandler(BackupHandler):
         if not sources:
             raise BackupHandlerError('No sources to archive', 1033)
         
-        async with FsAdapter.open(dest.join('archive.tar.gz'), 'wb') as f:
+        with FsAdapter.open(dest.join('archive.tar.gz'), 'wb') as f:
             self._logger.info(f'Streaming archive from "{self._host}" to "{dest.path}"')
             
             await CmdExec.exec(['tar', 'czf', '-', *sources], host=self._host, stdout=f)

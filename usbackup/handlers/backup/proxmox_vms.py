@@ -77,7 +77,7 @@ class ProxmoxVmsHandler(BackupHandler):
         cmd_options = CmdExec.parse_cmd_options(cmd_options)
         file_name = f'vzdump-qemu-{vm}.{self._compression_types[self._compress]}'
 
-        async with FsAdapter.open(dest.join(file_name), 'wb') as f:
+        with FsAdapter.open(dest.join(file_name), 'wb') as f:
             self._logger.info(f'Streaming vzdump for VM {vm} from "{self._host}" to "{dest.path}"')
             
             await CmdExec.exec(['vzdump', str(vm), *cmd_options], stdout=f, host=self._host)

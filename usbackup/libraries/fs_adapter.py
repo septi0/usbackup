@@ -1,8 +1,7 @@
-import aiofiles
-from contextlib import asynccontextmanager
+from contextlib import contextmanager
+from typing import Literal, IO, Any, Generator
 from usbackup.libraries.cmd_exec import CmdExec, CmdExecProcessError
 from usbackup.models.path import PathModel
-from typing import Literal
 
 __all__ = ['FsAdapter', 'FsAdapterError']
 
@@ -79,10 +78,12 @@ class FsAdapter:
         remote = None
         
         if not src.host.local:
-            src_path = f'{src.host.user}@{src.host.host}:{src_path}'
+            src_path = f'{src.host.host}:{src_path}'
+            if src.host.user is not None: src_path = f'{src.host.user}@{src_path}'
             remote = src.host
         elif not dst.host.local:
-            dst_path = f'{dst.host.user}@{dst.host.host}:{dst_path}'
+            dst_path = f'{dst.host.host}:{dst_path}'
+            if dst.host.user is not None: dst_path = f'{dst.host.user}@{dst_path}'
             remote = dst.host
 
         if remote:
@@ -122,10 +123,12 @@ class FsAdapter:
         remote = None
         
         if not src.host.local:
-            src_path = f'{src.host.user}@{src.host.host}:{src_path}'
+            src_path = f'{src.host.host}:{src_path}'
+            if src.host.user is not None: src_path = f'{src.host.user}@{src_path}'
             remote = src.host
         elif not dst.host.local:
-            dst_path = f'{dst.host.user}@{dst.host.host}:{dst_path}'
+            dst_path = f'{dst.host.host}:{dst_path}'
+            if dst.host.user is not None: dst_path = f'{dst.host.user}@{dst_path}'
             remote = dst.host
         
         if remote:
@@ -140,16 +143,18 @@ class FsAdapter:
         return await CmdExec.exec([*cmd_prefix, "scp", *cmd_options, src_path, dst_path])
     
     @classmethod
-    @asynccontextmanager
-    async def open(cls, path: PathModel, mode: Literal["r", "w", "x", "a", "r+", "w+", "x+", "a+"] = 'r'):
-        """
-        Async context manager that opens a file using aiofiles.
-        """
+    @contextmanager
+    def open(
+        cls,
+        path: PathModel,
+        mode: Literal["r", "w", "x", "a", "rb", "wb", "xb", "ab", "r+", "w+", "x+", "a+"] = 'r'
+    ) -> Generator[IO[Any], None, None]:
+        """Context manager that opens a file at the specified path."""
         if not path.host.local:
             raise FsAdapterError("Local files only")
         
-        f = await aiofiles.open(path.path, mode)
+        f = open(path.path, mode)
         try:
             yield f
         finally:
-            await f.close()
+            f.close()

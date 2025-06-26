@@ -2,6 +2,7 @@ import logging
 import asyncio
 import shlex
 from usbackup.models.host import HostModel
+from typing import IO, Any
 
 __all__ = ['CmdExec', 'CmdExecError', 'CmdExecProcessError']
 
@@ -15,7 +16,16 @@ class CmdExecProcessError(Exception):
 
 class CmdExec:
     @classmethod
-    async def exec(cls, cmd: list, *, host: HostModel | None = None, input: str | None = None, env=None, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE) -> str:
+    async def exec(
+        cls, cmd: list,
+        *,
+        host: HostModel | None = None,
+        input: str | None = None,
+        env=None,
+        stdin: int | IO[Any] | None = asyncio.subprocess.PIPE,
+        stdout: int | IO[Any] | None = asyncio.subprocess.PIPE,
+        stderr: int | IO[Any] | None = asyncio.subprocess.PIPE
+    ) -> str:
         if host and not host.local:
             cmd = cls.gen_ssh_cmd(cmd, host)
         
