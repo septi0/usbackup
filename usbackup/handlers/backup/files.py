@@ -1,8 +1,9 @@
 import os
 import datetime
 from typing import Literal
-from usbackup.libraries.cmd_exec import CmdExec
 from usbackup.libraries.fs_adapter import FsAdapter
+from usbackup.libraries.remote_cmd import RemoteCmd
+from usbackup.libraries.remote_sync import RemoteSync
 from usbackup.models.path import PathModel
 from usbackup.models.host import HostModel
 from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHandlerError
@@ -83,7 +84,7 @@ class FilesHandler(BackupHandler):
             self._logger.info(f'Copying "{src}" to "{dest.path}"')
             start_time = datetime.datetime.now()
             
-            stats = await FsAdapter.rsync(src, dest, options=options)
+            stats = await RemoteSync.rsync(src, dest, options=options)
             
             self._logger.debug(stats)
             
@@ -105,4 +106,4 @@ class FilesHandler(BackupHandler):
         with FsAdapter.open(dest.join('archive.tar.gz'), 'wb') as f:
             self._logger.info(f'Streaming archive from "{self._host}" to "{dest.path}"')
             
-            await CmdExec.exec(['tar', 'czf', '-', *sources], host=self._host, stdout=f)
+            await RemoteCmd.exec(['tar', 'czf', '-', *sources], self._host, stdout=f)

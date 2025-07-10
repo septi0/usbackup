@@ -1,4 +1,5 @@
 from typing import Literal
+from usbackup.libraries.remote_cmd import RemoteCmd
 from usbackup.libraries.cmd_exec import CmdExec
 from usbackup.libraries.fs_adapter import FsAdapter
 from usbackup.models.path import PathModel
@@ -35,7 +36,7 @@ class ProxmoxVmsHandler(BackupHandler):
         self._logger.info(f'Fetching VM list from "{self._host}"')
         
         try:
-            exec_ret = await CmdExec.exec(['qm', 'list'], host=self._host)
+            exec_ret = await RemoteCmd.exec(['qm', 'list'], self._host)
         except Exception as e:
             raise BackupHandlerError(f'Failed to fetch VM list: {e}', 1001)
         
@@ -80,4 +81,4 @@ class ProxmoxVmsHandler(BackupHandler):
         with FsAdapter.open(dest.join(file_name), 'wb') as f:
             self._logger.info(f'Streaming vzdump for VM {vm} from "{self._host}" to "{dest.path}"')
             
-            await CmdExec.exec(['vzdump', str(vm), *cmd_options], stdout=f, host=self._host)
+            await RemoteCmd.exec(['vzdump', str(vm), *cmd_options], self._host, stdout=f)

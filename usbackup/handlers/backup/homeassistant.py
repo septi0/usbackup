@@ -1,6 +1,6 @@
 import json
-from usbackup.libraries.cmd_exec import CmdExec
-from usbackup.libraries.fs_adapter import FsAdapter
+from usbackup.libraries.remote_cmd import RemoteCmd
+from usbackup.libraries.remote_sync import RemoteSync
 from usbackup.models.path import PathModel
 from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHandlerError
 
@@ -16,7 +16,7 @@ class HomeassistantHandler(BackupHandler):
     async def backup(self, dest: PathModel, dest_link: PathModel | None = None) -> None:
         self._logger.info(f'Generating backup archive on "{self._host}"')
         
-        result = await CmdExec.exec(['ha', 'backups', 'new', '--name', 'usbackup', '--raw-json', '--no-progress'], host=self._host)
+        result = await RemoteCmd.exec(['ha', 'backups', 'new', '--name', 'usbackup', '--raw-json', '--no-progress'], self._host)
         
         # convert result to json
         try:
@@ -30,13 +30,13 @@ class HomeassistantHandler(BackupHandler):
         
         slug = result['data']['slug']
         
-        self._cleanup.push(f'remove_backup_archive_{self._id}', CmdExec.exec, ['ha', 'backups', 'remove', slug], host=self._host)
+        self._cleanup.push(f'remove_backup_archive_{self._id}', RemoteCmd.exec, ['ha', 'backups', 'remove', slug], self._host)
 
         archive_path = PathModel(path=f'/root/backup/{slug}.tar', host=self._host)
 
         self._logger.info(f'Copying "{archive_path}" to "{dest.path}"')
         
-        await FsAdapter.scp(archive_path, dest.join('archive.tar'))
+        await RemoteSync.scp(archive_path, dest.join('archive.tar'))
         
         self._logger.info(f'Deleting backup archive on "{self._host}"')
         

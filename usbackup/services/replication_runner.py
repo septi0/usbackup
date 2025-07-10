@@ -2,7 +2,7 @@ import logging
 import datetime
 import io
 from usbackup.libraries.cleanup_queue import CleanupQueue
-from usbackup.libraries.fs_adapter import FsAdapter
+from usbackup.libraries.remote_sync import RemoteSync
 from usbackup.models.retention_policy import RetentionPolicyModel
 from usbackup.models.result import ResultModel
 from usbackup.models.path import PathModel
@@ -74,5 +74,5 @@ class ReplicationRunner(Runner):
         
         self._logger.info(f'Replicating "{source}" to "{dest}"')
         
-        stats = await FsAdapter.rsync(source, dest, options=options)
+        stats = await RemoteSync.rsync(source, dest, options=options)
         self._logger.debug(stats)

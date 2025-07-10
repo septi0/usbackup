@@ -55,7 +55,7 @@ class CmdExec:
     @classmethod
     async def is_host_reachable(cls, host: HostModel) -> bool:
         try:
-            await cls.exec(['echo', '1'], host=host)
+            await cls.exec(['ping', '-c', '1', host.host])
         except CmdExecProcessError:
             return False
         

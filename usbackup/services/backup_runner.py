@@ -24,8 +24,8 @@ class BackupRunner(Runner):
         
         # test connection to host
         if not await CmdExec.is_host_reachable(self._context.host):
-            raise UsBackupRuntimeError(f'Host" {self._context.host}" is not reachable')
-        
+            raise UsBackupRuntimeError(f'Host "{self._context.host}" is not reachable')
+
         run_time = datetime.datetime.now()
         
         self._logger.info(f'Backup started at {run_time}')

@@ -1,4 +1,4 @@
-from usbackup.libraries.fs_adapter import FsAdapter
+from usbackup.libraries.remote_sync import RemoteSync
 from usbackup.models.path import PathModel
 from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHandlerError
 
@@ -17,5 +17,5 @@ class TruenasHandler(BackupHandler):
         db_path = PathModel(path='/data/freenas-v1.db', host=self._host)
         secret_path = PathModel(path='/data/pwenc_secret', host=self._host)
         
-        await FsAdapter.rsync(db_path, dest)
-        await FsAdapter.rsync(secret_path, dest)
+        await RemoteSync.rsync(db_path, dest)
+        await RemoteSync.rsync(secret_path, dest)
