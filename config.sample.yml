@@ -27,6 +27,10 @@ sources:
       exclude: [vm3] # list of VMs to exclude from the backup - optional
       bwlimit: # limit the bandwidth - optional
 
+    - handler: unifi # enable Unifi controller backup
+      user: unifi_user # Unifi controller username
+      password: unifi_password # Unifi controller password
+
 storages:
   - name: storage1 # The name of the storage to be used
 
