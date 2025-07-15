@@ -25,8 +25,8 @@ class UsBackupManager:
 
         self._logger: logging.Logger = self._logger_factory(log_file, log_level)
         self._model: UsBackupModel = UsBackupModel(**self._load_config(file=config_file, alt_job=alt_job))
-        self._cleanup: CleanupQueue = CleanupQueue()
         self._datastore: Datastore = Datastore(self._get_datastore_filepath())
+        self._cleanup: CleanupQueue = CleanupQueue(datastore=self._datastore)
 
     def run_once(self) -> None:
         """ Run the backup job once, without scheduling."""
@@ -181,6 +181,10 @@ class UsBackupManager:
         loop.add_signal_handler(signal.SIGTERM, self._sigterm_handler)
         loop.add_signal_handler(signal.SIGINT, self._sigterm_handler)
         loop.add_signal_handler(signal.SIGQUIT, self._sigterm_handler)
+        
+        if self._cleanup.has_items():
+            self._logger.warning("Cleanup queue has items. Possible crash detected. Running cleanup jobs")
+            loop.run_until_complete(self._cleanup.consume_all())
 
         try:
             output = loop.run_until_complete(main_task(*args, **kwargs))
@@ -257,9 +261,9 @@ class UsBackupManager:
         with open(self._pid_filepath, 'w') as f:
             f.write(pid)
 
-        self._cleanup.push('remove_service_pid', os.remove, self._pid_filepath)
-        self._cleanup.push('set_running_state', self._datastore.set, 'running', False)
-        self._cleanup.push('log_service_shutdown', self._logger.info, 'Shutting down service')
+        self._cleanup.push(f'remove_service_pid_{pid}', os.remove, self._pid_filepath)
+        self._cleanup.push(f'set_running_state_{pid}', self._datastore.set, 'running', False)
+        self._cleanup.push(f'log_service_shutdown_{pid}', self._logger.info, 'Shutting down service')
 
         self._logger.info(f'Starting service with pid {pid}')
 

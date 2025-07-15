@@ -8,7 +8,7 @@ class Datastore:
     def get(self, key: str, default: Any = None) -> Any:
         with shelve.open(self._filename) as db:
             if key in db:
-                return dict(db[key])
+                return db[key]
             else:
                 return default
 

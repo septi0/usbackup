@@ -41,13 +41,17 @@ class BackupRunner(Runner):
         dest = version.path
         dest_link = latest_version.path if latest_version else None
         error = None
-        
+
+        # Add cleanup task for removing inconsistent version in case something goes wrong
+        self._cleanup.push(f'remove_inconsistent_version_{self._id}', self._remove_inconsistent_version, version)
+
         try:
             await self._run_backup_handlers(dest, dest_link)
+            # remove cleanup task for removing inconsistent version
+            self._cleanup.pop(f'remove_inconsistent_version_{self._id}')
         except Exception as e:
             self._logger.exception(e)
-            self._logger.warning(f'Deleting inconsistent backup version')
-            await self._context.remove_version(version)
+            await self._cleanup.consume(f'remove_inconsistent_version_{self._id}')
             error = e
         
         if not error:
@@ -87,3 +91,8 @@ class BackupRunner(Runner):
             
             self._logger.info(f'Performing backup via "{handler.handler}" handler')
             await handler.backup(handler_dest, handler_dest_link)
+
+    async def _remove_inconsistent_version(self, version: BackupVersionModel) -> None:
+        self._logger.warning(f'Deleting inconsistent backup version')
+
+        await self._context.remove_version(version)
