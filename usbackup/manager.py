@@ -184,7 +184,12 @@ class UsBackupManager:
         
         if self._cleanup.has_items():
             self._logger.warning("Cleanup queue has items. Possible crash detected. Running cleanup jobs")
-            loop.run_until_complete(self._cleanup.consume_all())
+            
+            try:
+                loop.run_until_complete(self._cleanup.consume_all())
+            except Exception as e:
+                self._logger.exception(f'Failed to recover from crash: {e}')
+                self._cleanup.clear()
 
         try:
             output = loop.run_until_complete(main_task(*args, **kwargs))

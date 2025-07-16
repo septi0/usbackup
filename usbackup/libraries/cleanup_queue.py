@@ -32,6 +32,11 @@ class CleanupQueue:
         self._queue.pop(index)
         
         self._datastore.set('cleanup_queue', self._queue)
+        
+    def clear(self) -> None:
+        self._queue.clear()
+        
+        self._datastore.set('cleanup_queue', self._queue)
     
     async def consume(self, id: str) -> None:
         index = self._get_index(id)
