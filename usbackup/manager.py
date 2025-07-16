@@ -261,9 +261,8 @@ class UsBackupManager:
         with open(self._pid_filepath, 'w') as f:
             f.write(pid)
 
-        self._cleanup.push(f'remove_service_pid_{pid}', os.remove, self._pid_filepath)
+        self._cleanup.push(f'remove_service_pid_{pid}', self._remove_pid_file)
         self._cleanup.push(f'set_running_state_{pid}', self._datastore.set, 'running', False)
-        self._cleanup.push(f'log_service_shutdown_{pid}', self._logger.info, 'Shutting down service')
 
         self._logger.info(f'Starting service with pid {pid}')
 
@@ -332,6 +331,16 @@ class UsBackupManager:
         for task in tasks:
             if isinstance(task.exception(), Exception):
                 self._logger.exception(task.exception())
+                
+    def _remove_pid_file(self) -> None:
+        if not os.path.isfile(self._pid_filepath):
+            return
+        
+        try:
+            os.remove(self._pid_filepath)
+            self._logger.info(f"Removed pid file {self._pid_filepath}")
+        except OSError as e:
+            self._logger.error(f"Failed to remove pid file {self._pid_filepath}: {e}")
                 
     def _format_stats(self, stats: dict, format: str) -> str:
         if format == 'json':
