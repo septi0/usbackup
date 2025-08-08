@@ -130,6 +130,8 @@ Commands:
 
 For a sample configuration file see `config.sample.yml` file. Aditionally, you can copy the file to `/etc/usbackup/config.yml`, `/etc/opt/usbackup/config.yml` or `~/.config/usbackup/config.yml` (or where you want as long as you provide the `--config` parameter) and adjust the values to your needs.
 
+A `secrets.env` file can also be created in the same directory as the config file to store sensitive information such as passwords and API keys. This file should be in the format of key=value pairs, one per line and referenced in the config file using the `${VAR_NAME}` syntax.
+
 For details on how to configure the file, see the `config.sample.yml` file.
 
 The main sections of the configuration file are:

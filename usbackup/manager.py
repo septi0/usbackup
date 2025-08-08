@@ -6,7 +6,9 @@ import yaml
 import datetime
 import asyncio
 import json
+import re
 from logging.handlers import TimedRotatingFileHandler
+from dotenv import dotenv_values
 from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.libraries.datastore import Datastore
 from usbackup.models.usbackup import UsBackupModel
@@ -24,7 +26,7 @@ class UsBackupManager:
         self._pid_filepath: str = self._get_pid_filepath()
 
         self._logger: logging.Logger = self._logger_factory(log_file, log_level)
-        self._model: UsBackupModel = UsBackupModel(**self._load_config(file=config_file, alt_job=alt_job))
+        self._model: UsBackupModel = UsBackupModel(**self._load_config(config_file=config_file, alt_job=alt_job))
         self._datastore: Datastore = Datastore(self._get_datastore_filepath())
         self._cleanup: CleanupQueue = CleanupQueue(datastore=self._datastore)
 
@@ -40,27 +42,28 @@ class UsBackupManager:
         """ Get the current stats of the backup service."""
         return self._run_main(self._get_stats, format=format)
     
-    def _load_config(self, *, file: str | None = None, alt_job: dict | None = None) -> dict:
-        config_files = [
-            '/etc/usbackup/config.yml',
-            '/etc/opt/usbackup/config.yml',
-            os.path.expanduser('~/.config/usbackup/config.yml'),
-        ]
+    def _load_config(self, *, config_file: str | None = None, alt_job: dict | None = None) -> dict:
+        if not config_file:
+            default_config_paths = [
+                '/etc/usbackup',
+                '/etc/opt/usbackup',
+                os.path.expanduser('~/.config/usbackup'),
+            ]
+
+            for dir in default_config_paths:
+                if os.path.isfile(os.path.join(dir, 'config.yml')):
+                    config_file = os.path.join(dir, 'config.yml')
+                    break
+
+        if not config_file or not os.path.isfile(config_file):
+            raise UsBackupRuntimeError("Config file does not exist")
         
-        if file:
-            config_files = [file]
-            
-        file_to_load = None
+        config_secrets_file = None
         
-        for config_file in config_files:
-            if os.path.isfile(config_file):
-                file_to_load = config_file
-                break
-       
-        if not file_to_load:
-            raise UsBackupRuntimeError("No config file found")
-        
-        with open(file_to_load, 'r') as f:
+        if os.path.isfile(os.path.dirname(config_file) + '/secrets.env'):
+            config_secrets_file = os.path.dirname(config_file) + '/secrets.env'
+
+        with open(config_file, 'r') as f:                
             try:
                 config = yaml.safe_load(f)
             except yaml.YAMLError as e:
@@ -73,9 +76,33 @@ class UsBackupManager:
                 alt_job['retention_policy'] = {k.strip(): int(v) for k, v in (x.split('=') for x in alt_job['retention_policy'])}
                 
             config['jobs'] = [alt_job]
+        
+        if config_secrets_file:
+            config = self._expand_config_secrets(config, config_secrets_file)
             
         return config
+
+    def _expand_config_secrets(self, config: dict, config_secrets_file: str) -> dict:
+        try:
+            secrets = dotenv_values(config_secrets_file)
+        except Exception as e:
+            raise UsBackupRuntimeError(f"Failed to load secrets file: {e}")
+
+        for key, value in config.items():
+            config[key] = self._replace_config_secrets(value, secrets)
         
+        return config
+
+    def _replace_config_secrets(self, obj: Any, secrets: dict) -> Any:
+        if isinstance(obj, dict):
+            return {k: self._replace_config_secrets(v, secrets) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._replace_config_secrets(item, secrets) for item in obj]
+        elif isinstance(obj, str):
+            return re.sub(r'\$\{(\w+)\}', lambda m: secrets.get(m.group(1), m.group(0)), obj)
+
+        return obj
+
     def _get_pid_filepath(self) -> str:
         if os.getuid() == 0:
             return '/var/run/usbackup.pid'
