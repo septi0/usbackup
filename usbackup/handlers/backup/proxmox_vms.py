@@ -67,7 +67,7 @@ class ProxmoxVmsHandler(BackupHandler):
             ('mode', self._mode),
             ('compress', self._compress),
             ('notification-mode', 'legacy-sendmail'),
-            ('notification-policy', 'never'),
+            # ('notification-policy', 'never'),
             'stdout',
             'quiet',
         ]
