@@ -1,6 +1,6 @@
 __app_name__ = "UsBackup"
 __package_name__ = "usbackup"
-__version__ = "2.4.10"
+__version__ = "2.4.12"
 __description__ = "SSH based modular backup tool featuring hosts, retention policies, backup handlers and report handlers"
 __author__ = "Septimiu Ujica"
 __author_email__ = "hellp@septi.ro"
