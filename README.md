@@ -130,7 +130,7 @@ Commands:
 
 #### Run a manual backup job
 
-Backup all sources to `storage1`, using the notification and retention settings defined in the config:
+Backup all sources to `storage1`. No retention policy is applied - all versions are kept indefinitely:
 
 ```
 usbackup run --dest storage1
@@ -162,17 +162,9 @@ usbackup run --dest storage1 --retention-policy last=5,daily=7,weekly=4
 
 ---
 
-Backup with concurrency (process 3 sources in parallel) and suppress notifications:
-
-```
-usbackup run --dest storage1 --concurrency 3 --notification-policy never
-```
-
----
-
 #### Run a manual replication job
 
-Replicate the latest backup from `storage1` to `storage2` using incremental mode (default — hardlinks unchanged files to save space):
+Replicate the latest backup from `storage1` to `storage2` using incremental mode (default):
 
 ```
 usbackup run --type replication --replicate storage1 --dest storage2
@@ -180,15 +172,7 @@ usbackup run --type replication --replicate storage1 --dest storage2
 
 ---
 
-Replicate using full mode (fresh copy every time, no hardlinks):
-
-```
-usbackup run --type replication --replicate storage1 --dest storage2 --replication-mode full
-```
-
----
-
-Replicate using archive mode (packages the latest backup version into a `archive.tar.gz` per version):
+Replicate using archive mode (packages the latest backup version into an `archive.tar.gz` per version):
 
 ```
 usbackup run --type replication --replicate storage1 --dest storage2 --replication-mode archive
@@ -201,6 +185,8 @@ Replicate only specific sources with a retention policy:
 ```
 usbackup run --type replication --replicate storage1 --dest storage2 --limit host1 --retention-policy last=3,daily=7
 ```
+
+> **Note:** The destination storage for replication jobs can be a remote host over SSH, just like any other storage. Configure it with a host in the `storages` section of the config file.
 
 ## Configuration file
 
