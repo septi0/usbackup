@@ -61,6 +61,12 @@ class BackupRunner(Runner):
                 self._logger.exception(f'Failed to apply retention policy. {e}')
                 error = e
 
+        if not error:
+            try:
+                await self._context.update_latest_symlink()
+            except Exception as e:
+                self._logger.exception(f'Failed to update latest symlink. {e}')
+
         await self._cleanup.consume(f'remove_lock_{self._id}')
 
         finish_time = datetime.datetime.now()

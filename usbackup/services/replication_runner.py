@@ -72,7 +72,11 @@ class ReplicationRunner(Runner):
             'delete-during',
         ]
         
+        # add trailing slash to source path to copy the contents of the directory instead of the directory itself
+        source_trailing = source.model_copy()
+        source_trailing.path = source.path.rstrip('/') + '/'
+
         self._logger.info(f'Replicating "{source}" to "{dest}"')
         
-        stats = await RemoteSync.rsync(source, dest, options=options)
+        stats = await RemoteSync.rsync(source_trailing, dest, options=options)
         self._logger.debug(stats)

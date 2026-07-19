@@ -97,6 +97,17 @@ class ContextService:
 
         await FsAdapter.rm(lock_file)
         
+    async def update_latest_symlink(self) -> None:
+        latest_version = await self.get_latest_version()
+        latest_link = self._destination.join('latest')
+
+        if latest_version:
+            self._logger.info(f'Updating "latest" symlink to "{latest_version.version}"')
+            await FsAdapter.symlink(latest_link, latest_version.version)
+        else:
+            if await FsAdapter.exists(latest_link):
+                await FsAdapter.rm(latest_link)
+
     async def ensure_destination(self) -> None:
         if not await FsAdapter.exists(self._destination, 'd'):
             self._logger.info(f'Creating context directory "{self._destination}"')

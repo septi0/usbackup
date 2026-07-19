@@ -78,6 +78,16 @@ class FsAdapter:
         return True
     
     @classmethod
+    async def symlink(cls, path: PathModel, target: str) -> None:
+        """
+        Create or replace a symlink at the specified path pointing to target.
+        """
+        if not path.host.local:
+            raise FsAdapterError("Local files only")
+
+        await CmdExec.exec(["ln", "-sfn", target, path.path])
+
+    @classmethod
     @contextmanager
     def open(
         cls,
