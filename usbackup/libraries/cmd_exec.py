@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import shlex
+import os
 from usbackup.models.host import HostModel
 from typing import IO, Any
 
@@ -52,6 +53,34 @@ class CmdExec:
         
         return result
     
+    @classmethod
+    async def pipe(cls, src_cmd: list, dst_cmd: list, *, dst_host: HostModel | None = None) -> None:
+        """
+        Run src_cmd locally and pipe its stdout into stdin of dst_cmd.
+        dst_cmd can optionally run on a remote host via SSH.
+        """
+        if dst_host and not dst_host.local:
+            dst_cmd = cls.gen_ssh_cmd(dst_cmd, dst_host)
+
+        logging.debug(f'Piping: {src_cmd} | {dst_cmd}')
+
+        r_fd, w_fd = os.pipe()
+
+        try:
+            src_proc = await asyncio.create_subprocess_exec(*src_cmd, stdout=w_fd, stderr=asyncio.subprocess.PIPE)
+            dst_proc = await asyncio.create_subprocess_exec(*dst_cmd, stdin=r_fd, stderr=asyncio.subprocess.PIPE)
+        finally:
+            os.close(w_fd)
+            os.close(r_fd)
+
+        (_, src_err), (_, dst_err) = await asyncio.gather(src_proc.communicate(), dst_proc.communicate())
+
+        if src_proc.returncode != 0:
+            raise CmdExecProcessError(src_err.decode('utf-8').strip(), src_proc.returncode)
+
+        if dst_proc.returncode != 0:
+            raise CmdExecProcessError(dst_err.decode('utf-8').strip(), dst_proc.returncode)
+
     @classmethod
     async def is_host_reachable(cls, host: HostModel) -> bool:
         try:

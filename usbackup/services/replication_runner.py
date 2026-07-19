@@ -4,7 +4,6 @@ import io
 from usbackup.libraries.cleanup_queue import CleanupQueue
 from usbackup.libraries.remote_sync import RemoteSync
 from usbackup.libraries.cmd_exec import CmdExec
-from usbackup.libraries.fs_adapter import FsAdapter
 from usbackup.models.version import BackupVersionModel
 from usbackup.models.retention_policy import RetentionPolicyModel
 from usbackup.models.result import ResultModel
@@ -108,5 +107,8 @@ class ReplicationRunner(Runner):
 
         self._logger.info(f'Archiving "{source}" to "{archive_path}"')
 
-        with FsAdapter.open(archive_path, 'wb') as f:
-            await CmdExec.exec(['tar', 'czf', '-', '-C', source.path, '.'], stdout=f)
+        await CmdExec.pipe(
+            ['tar', 'czf', '-', '-C', source.path, '.'],
+            ['bash', '-c', f'cat > {archive_path.path}'],
+            dst_host=dest.host,
+        )
