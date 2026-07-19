@@ -110,6 +110,8 @@ Commands:
         --dest DEST           Destination storage to be used when performing the job
         --replicate REPLICATE
                               Source storage to read the data from when performing the replication job - required when the job type is replication, otherwise ignored
+        --replication-mode {incremental,full,archive}
+                              Replication mode. Available options: incremental, full, archive. Default: incremental
         --limit LIMIT         List of sources for the job (if no sources are provided, all sources will be included, except the ones in the exclude list)
         --exclude EXCLUDE     List of sources to exclude from the job
         --retention-policy RETENTION_POLICY
