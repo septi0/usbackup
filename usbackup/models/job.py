@@ -13,6 +13,7 @@ class JobModel(BaseModel):
     retention_policy: RetentionPolicyModel | None = None
     notification_policy: Literal['never', 'always', 'on-failure'] = 'always'
     concurrency: int = Field(1, ge=1)
+    replication_mode: Literal['incremental', 'full', 'archive'] = 'incremental'
     pre_run_cmd: list | None = None
     post_run_cmd: list | None = None
     replicate: str | None = None

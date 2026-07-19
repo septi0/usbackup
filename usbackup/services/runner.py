@@ -100,3 +100,8 @@ class Runner:
         protected.sort()
                 
         return protected
+
+    async def _remove_inconsistent_version(self, version: BackupVersionModel) -> None:
+        self._logger.warning(f'Deleting inconsistent version')
+
+        await self._context.remove_version(version)

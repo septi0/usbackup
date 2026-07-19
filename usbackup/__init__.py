@@ -23,6 +23,7 @@ def main():
     job_parser.add_argument('--type', dest='type', choices=['backup', 'replication'] , help='The type of the job to run. Available types: backup, replication')
     job_parser.add_argument('--dest', dest='dest', required=True, help='Destination storage to be used when performing the job')
     job_parser.add_argument('--replicate', dest='replicate', help='Source storage to read the data from when performing the replication job - required when the job type is replication, otherwise ignored')
+    job_parser.add_argument('--replication-mode', dest='replication_mode', choices=['incremental', 'full', 'archive'], help='Replication mode. Available options: incremental, full, archive. Default: incremental')
     job_parser.add_argument('--limit', dest='limit', action='append', help='List of sources for the job (if no sources are provided, all sources will be included, except the ones in the exclude list)')
     job_parser.add_argument('--exclude', dest='exclude', action='append', help='List of sources to exclude from the job')
     job_parser.add_argument('--retention-policy', dest='retention_policy', help='Retention policy. last=<NR>,hourly=<NR>,daily=<daNRys>,weekly=<NR>,monthly=<NR>,yearly=<NR>. Example: --retention-policy last=6,hourly=24,daily=7,weekly=4,monthly=12,yearly=1')
@@ -48,6 +49,7 @@ def main():
             'type': args.type,
             'dest': args.dest,
             'replicate': args.replicate,
+            'replication_mode': args.replication_mode,
             'limit': args.limit,
             'exclude': args.exclude,
             'retention_policy': args.retention_policy,

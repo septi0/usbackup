@@ -35,6 +35,7 @@ class JobService:
         self._schedule: str = job.schedule
         self._retention_policy: RetentionPolicyModel | None = job.retention_policy
         self._concurrency: int = job.concurrency
+        self._replication_mode: str = job.replication_mode
         self._pre_run_cmd: list | None = job.pre_run_cmd
         self._post_run_cmd: list | None = job.post_run_cmd
 
@@ -102,7 +103,7 @@ class JobService:
                     
                     result = await runner.run()
                 elif self._type == 'replication':
-                    runner = ReplicationRunner(context, self._retention_policy, cleanup=self._cleanup, logger=logger)
+                    runner = ReplicationRunner(context, self._retention_policy, mode=self._replication_mode, cleanup=self._cleanup, logger=logger)
                     
                     if not self._replication_src:
                         raise UsBackupRuntimeError(f"Replication source is not set for job {self._name}")

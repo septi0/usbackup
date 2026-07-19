@@ -98,7 +98,3 @@ class BackupRunner(Runner):
             self._logger.info(f'Performing backup via "{handler.handler}" handler')
             await handler.backup(handler_dest, handler_dest_link)
 
-    async def _remove_inconsistent_version(self, version: BackupVersionModel) -> None:
-        self._logger.warning(f'Deleting inconsistent backup version')
-
-        await self._context.remove_version(version)

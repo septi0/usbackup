@@ -45,6 +45,8 @@ jobs:
 
     replicate: storage2 # Source storage to read the data from when performing the replication job - required when the job type is replication, otherwise ignored
 
+    replication_mode: incremental # Replication mode. Available options: incremental, full, archive. Default: incremental
+
     schedule: 0 0 * * * # Cron schedule to be used when running the job. Default: 0 0 * * *
 
     limit: [host1] # List of sources for the job - optional (if no sources are provided, all sources will be included, except the ones in the exclude list)

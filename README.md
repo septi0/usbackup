@@ -126,6 +126,82 @@ Commands:
         --json      Output the stats in JSON format
 ```
 
+## Examples
+
+#### Run a manual backup job
+
+Backup all sources to `storage1`, using the notification and retention settings defined in the config:
+
+```
+usbackup run --dest storage1
+```
+
+---
+
+Backup only specific sources:
+
+```
+usbackup run --dest storage1 --limit host1 --limit host2
+```
+
+---
+
+Backup all sources except one:
+
+```
+usbackup run --dest storage1 --exclude host3
+```
+
+---
+
+Backup with a custom retention policy (keep last 5, 7 daily, 4 weekly):
+
+```
+usbackup run --dest storage1 --retention-policy last=5,daily=7,weekly=4
+```
+
+---
+
+Backup with concurrency (process 3 sources in parallel) and suppress notifications:
+
+```
+usbackup run --dest storage1 --concurrency 3 --notification-policy never
+```
+
+---
+
+#### Run a manual replication job
+
+Replicate the latest backup from `storage1` to `storage2` using incremental mode (default — hardlinks unchanged files to save space):
+
+```
+usbackup run --type replication --replicate storage1 --dest storage2
+```
+
+---
+
+Replicate using full mode (fresh copy every time, no hardlinks):
+
+```
+usbackup run --type replication --replicate storage1 --dest storage2 --replication-mode full
+```
+
+---
+
+Replicate using archive mode (packages the latest backup version into a `archive.tar.gz` per version):
+
+```
+usbackup run --type replication --replicate storage1 --dest storage2 --replication-mode archive
+```
+
+---
+
+Replicate only specific sources with a retention policy:
+
+```
+usbackup run --type replication --replicate storage1 --dest storage2 --limit host1 --retention-policy last=3,daily=7
+```
+
 ## Configuration file
 
 For a sample configuration file see `config.sample.yml` file. Aditionally, you can copy the file to `/etc/usbackup/config.yml`, `/etc/opt/usbackup/config.yml` or `~/.config/usbackup/config.yml` (or where you want as long as you provide the `--config` parameter) and adjust the values to your needs.
