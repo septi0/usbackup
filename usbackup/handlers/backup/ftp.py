@@ -14,6 +14,7 @@ class FtpHandlerModel(HandlerBaseModel):
     exclude: list[str] = []
     tls: bool = False
     mode: Literal['incremental', 'full'] = 'incremental'
+    server: str = ''
     user: str | None = None
     password: str | None = None
 
@@ -28,11 +29,12 @@ class FtpHandler(BackupHandler):
         self._exclude: list[str] = model.exclude
         self._tls: bool = model.tls
         self._mode: str = model.mode
+        self._server: str = model.server
         self._user: str | None = model.user
         self._password: str | None = model.password
 
     async def backup(self, dest: PathModel, dest_link: PathModel | None = None) -> None:
-        host = self._host.host
+        host = self._server
         port = 990 if self._tls else 21
         user = self._user or 'anonymous'
         password = self._password or ''

@@ -5,6 +5,7 @@ from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHand
 
 class UnifiHandlerModel(HandlerBaseModel):
     handler: str = 'unifi'
+    server: str = ''
     user: str | None = None
     password: str | None = None
 
@@ -14,17 +15,18 @@ class UnifiHandler(BackupHandler):
     def __init__(self, model: UnifiHandlerModel, *args, **kwargs) -> None:
         super().__init__(model, *args, **kwargs)
         
+        self._server: str = model.server
         self._user: str | None = model.user
         self._password: str | None = model.password
 
     async def backup(self, dest: PathModel, dest_link: PathModel | None = None) -> None:
-        self._logger.debug(f'Creating session for Unifi controller at "{self._host}"')
+        self._logger.debug(f'Creating session for Unifi controller at "{self._server}"')
         
         async with aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar(unsafe=True)) as session:
-            login_url = f'https://{self._host}/api/auth/login'
+            login_url = f'https://{self._server}/api/auth/login'
             login_data = {'username': self._user, 'password': self._password}
             
-            self._logger.info(f'Authenticating to Unifi controller at "{self._host}"')
+            self._logger.info(f'Authenticating to Unifi controller at "{self._server}"')
             
             async with session.post(login_url, json=login_data, ssl=False) as resp:
                 if resp.status != 200:
@@ -41,13 +43,13 @@ class UnifiHandler(BackupHandler):
                 # get cookies from set-cookie headers
                 cookie = resp.headers.get('Set-Cookie', '').split(';')[0].strip()
 
-            backup_url = f'https://{self._host}/api/backup/download'
+            backup_url = f'https://{self._server}/api/backup/download'
             backup_headers = {
                 'X-Csrf-Token': csrf_token,
                 'Cookie': cookie,
             }
 
-            self._logger.info(f'Getting backup file from Unifi controller at "{self._host}"')
+            self._logger.info(f'Getting backup file from Unifi controller at "{self._server}"')
 
             # get backup file
             async with session.get(backup_url, headers=backup_headers, ssl=False) as resp:
