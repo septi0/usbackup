@@ -3,7 +3,7 @@ import re
 from pydantic import BaseModel, ConfigDict, model_validator
 
 """
-Allwed remote formats:
+Allowed remote formats:
     - hostname
     - hostname:port
     - username@hostname

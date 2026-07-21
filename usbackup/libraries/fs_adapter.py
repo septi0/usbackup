@@ -17,7 +17,7 @@ class FsAdapter:
         """
         Create a directory at the specified path.
         """
-        if not path.host.local:
+        if path.protocol != 'local_fs':
             raise FsAdapterError("Local files only")
         
         await CmdExec.exec(["mkdir", "-p", path.path])
@@ -27,7 +27,7 @@ class FsAdapter:
         """
         List the contents of a directory at the specified path.
         """
-        if not path.host.local:
+        if path.protocol != 'local_fs':
             raise FsAdapterError("Local files only")
         
         try:
@@ -42,7 +42,7 @@ class FsAdapter:
         """
         Remove a directory at the specified path.
         """
-        if not path.host.local:
+        if path.protocol != 'local_fs':
             raise FsAdapterError("Local files only")
         
         await CmdExec.exec(["rm", "-rf", path.path])
@@ -52,7 +52,7 @@ class FsAdapter:
         """
         Create an empty file at the specified path.
         """
-        if not path.host.local:
+        if path.protocol != 'local_fs':
             raise FsAdapterError("Local files only")
 
         await CmdExec.exec(["touch", path.path])
@@ -62,7 +62,7 @@ class FsAdapter:
         """
         Check if a file or directory exists at the specified path.
         """
-        if not path.host.local:
+        if path.protocol != 'local_fs':
             raise FsAdapterError("Local files only")
         
         try:
@@ -82,7 +82,7 @@ class FsAdapter:
         """
         Create or replace a symlink at the specified path pointing to target.
         """
-        if not path.host.local:
+        if path.protocol != 'local_fs':
             raise FsAdapterError("Local files only")
 
         await CmdExec.exec(["ln", "-sfn", target, path.path])
@@ -95,7 +95,7 @@ class FsAdapter:
         mode: Literal["r", "w", "x", "a", "rb", "wb", "xb", "ab", "r+", "w+", "x+", "a+"] = 'r'
     ) -> Generator[IO[Any], None, None]:
         """Context manager that opens a file at the specified path."""
-        if not path.host.local:
+        if path.protocol != 'local_fs':
             raise FsAdapterError("Local files only")
         
         f = open(path.path, mode)
