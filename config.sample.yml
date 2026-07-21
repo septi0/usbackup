@@ -31,6 +31,12 @@ sources:
       user: unifi_user # Unifi controller username
       password: unifi_password # Unifi controller password
 
+    - handler: ftp # enable FTP/FTPS backup (credentials come from the host string, e.g. user:password@ftphost:21)
+      limit: [/data, /config] # list of remote paths to download - optional (if omitted, downloads from /)
+      exclude: [/data/tmp] # list of remote paths to exclude - optional
+      tls: false # enable FTPS (FTP over TLS). Default: false
+      mode: incremental # available modes: incremental, full. Default: incremental
+
 storages:
   - name: storage1 # The name of the storage to be used
 
