@@ -18,6 +18,7 @@ Version 1.x is still available in the `legacy` branch.
 ## Features
 
 - Backup files (incremental, full, archive)
+- Backup FTP/FTPS sources (incremental, full)
 - Backup OpenWRT config
 - Backup Truenas config
 - Backup ZFS datasets
