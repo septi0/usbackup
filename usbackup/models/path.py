@@ -44,10 +44,13 @@ class PathModel(BaseModel):
     @classmethod
     def validate_after(cls, values):
         if values.protocol is None:
-            values.protocol = "local_fs" if values.host.host == "localhost" else "ssh"
+            values.protocol = "local_fs" if values.host.local else "ssh"
             
-        if values.protocol == "local_fs" and values.host.host != "localhost":
-            raise ValueError('Local filesystem protocol can only be used with localhost')
+        if values.protocol == "local_fs" and not values.host.local:
+            raise ValueError('Local filesystem protocol can only be used with local host')
+        
+        if values.protocol != "local_fs" and values.host.local:
+            raise ValueError('Remote protocols cannot be used with local host')
             
         return values
 
