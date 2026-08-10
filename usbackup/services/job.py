@@ -116,8 +116,13 @@ class JobService:
             
             if self._type == 'backup':
                 backups = self._datastore.get('backups', {})
-                backups[context.name] = result
-                
+                # Store only primitives so pickle never depends on third-party class definitions
+                backups[context.name] = {
+                    'date': result.date,
+                    'elapsed': result.elapsed,
+                    'error': str(result.error) if result.error else None,
+                    'dest': str(result.dest),
+                }
                 self._datastore.set('backups', backups)
                 
             result.set_message(log_stream.getvalue())

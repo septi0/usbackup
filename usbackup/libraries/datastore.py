@@ -8,7 +8,11 @@ class Datastore:
     def get(self, key: str, default: Any = None) -> Any:
         with shelve.open(self._filename) as db:
             if key in db:
-                return db[key]
+                try:
+                    return db[key]
+                except Exception:
+                    # Unpickling can fail if a stored class's __init__ signature changed
+                    return default
             else:
                 return default
 

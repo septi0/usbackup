@@ -324,10 +324,10 @@ class UsBackupManager:
         
         for name, backup in self._datastore.get('backups', {}).items():
             backups[name] = {
-                'date': str(backup.date),
-                'elapsed': str(backup.elapsed),
-                'error': str(backup.error) if backup.error else None,
-                'dest': str(backup.dest),
+                'date': str(backup['date']),
+                'elapsed': str(backup['elapsed']),
+                'error': backup['error'],
+                'dest': backup['dest'],
             }
         
         stats = {
