@@ -185,7 +185,7 @@ class JobService:
                 result = ResultModel(context, error=e)
             
             # a failed run keeps the version counts of the previous run, since the versions may not even be readable
-            versions = {} if result.error else await self._get_versions_stats(context)
+            versions = {} if result.error else {'last_success': result.date, **await self._get_versions_stats(context)}
             
             # Store only primitives so pickle never depends on third-party class definitions
             self._store_stats(context.name, {

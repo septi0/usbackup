@@ -15,6 +15,7 @@ from usbackup.libraries.cmd_exec import CmdExec
 from usbackup.libraries.datastore import Datastore
 from usbackup.models.usbackup import UsBackupModel
 from usbackup.models.job import JobModel
+from usbackup.models.source import SourceModel
 from usbackup.models.handler_base import HandlerBaseModel
 from usbackup.services.job import JobService
 from usbackup.services.notifier import NotifierService
@@ -120,6 +121,11 @@ class UsBackupManager:
 
         return obj
 
+    def healthcheck(self, *, max_backup_age: int = 26, max_replication_age: int | None = None) -> list[str] | bool:
+        """ Check the service and the age of the last successful backups and replications. Returns the problems found."""
+        # a read only query never runs cleanup jobs, which may need slow or unreachable remote hosts
+        return self._run_main(self._get_health_problems, max_backup_age=max_backup_age, max_replication_age=max_replication_age, recover=False)
+    
     def _get_pid_filepath(self) -> str:
         if os.getuid() == 0:
             return '/var/run/usbackup.pid'
@@ -204,7 +210,7 @@ class UsBackupManager:
         
         return job_model
     
-    def _job_factory(self, model: JobModel, *, limit: list[str] | None = None, exclude: list[str] | None = None) -> JobService:
+    def _get_job_sources(self, model: JobModel) -> list[SourceModel]:
         source_models = self._model.sources
         
         # filter source models
@@ -214,6 +220,11 @@ class UsBackupManager:
         if model.exclude:
             source_models = [source for source in source_models if source.name not in model.exclude]
         
+        return source_models
+    
+    def _job_factory(self, model: JobModel, *, limit: list[str] | None = None, exclude: list[str] | None = None) -> JobService:
+        source_models = self._get_job_sources(model)
+
         # a manual run of a configured job can be narrowed to some of its sources
         unknown_sources = [name for name in [*(limit or []), *(exclude or [])] if name not in [source.name for source in source_models]]
         
@@ -459,6 +470,52 @@ class UsBackupManager:
         
         return self._format_stats(stats, format)
     
+    async def _get_health_problems(self, max_backup_age: int, max_replication_age: int | None) -> list[str]:
+        problems = []
+        scheduled_jobs = [job for job in self._model.jobs if job.schedule != 'manual']
+        
+        if any(job.type == 'backup' for job in scheduled_jobs) and not self._is_service_running():
+            problems.append('Service is not running')
+        
+        backups = self._datastore.get('backups', {})
+        
+        # a source shared by several jobs is checked once
+        for name in dict.fromkeys(source.name for job in scheduled_jobs if job.type == 'backup' for source in self._get_job_sources(job)):
+            problems += self._check_health_entry(f'{name}: backup', backups.get(name), max_backup_age)
+        
+        # replications are only checked on request, since they are often run by hand (e.g. to a removable disk)
+        if max_replication_age is not None:
+            replications = self._datastore.get('replications', {})
+            
+            for job in self._model.jobs:
+                if job.type != 'replication':
+                    continue
+                
+                for source in self._get_job_sources(job):
+                    problems += self._check_health_entry(f'{source.name}: replication to "{job.dest}"', replications.get(job.dest, {}).get(source.name), max_replication_age)
+        
+        return problems
+    
+    def _check_health_entry(self, label: str, entry: dict | None, max_age: int) -> list[str]:
+        if not entry:
+            return [f'{label} never ran']
+        
+        if entry.get('error'):
+            return [f'{label} failed: {entry["error"].splitlines()[0]}']
+        
+        # entries written before the last success was recorded only have the date of their last run
+        last_success = entry.get('last_success') or entry.get('date')
+        
+        if not last_success:
+            return [f'{label} never succeeded']
+        
+        age = (datetime.datetime.now() - last_success).total_seconds() / 3600
+        
+        if age > max_age:
+            return [f'{label} last succeeded {age:.0f} hours ago']
+        
+        return []
+    
     async def _get_latest_version_size(self, dest: str | None) -> str:
         latest = os.path.join(dest, 'latest') if dest and os.path.isabs(dest) else None
         
@@ -480,6 +537,7 @@ class UsBackupManager:
             'date': str(entry['date']) if 'date' in entry else None,
             'elapsed': str(entry['elapsed']) if 'elapsed' in entry else None,
             'error': entry.get('error'),
+            'last_success': str(entry['last_success']) if 'last_success' in entry else None,
             'dest': entry.get('dest'),
             'versions': entry.get('versions'),
             'oldest': entry.get('oldest'),

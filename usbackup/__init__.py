@@ -70,6 +70,10 @@ def main():
     
     configtest_parser = subparsers.add_parser('configtest', help='Test the configuration file')
     stats_parser = subparsers.add_parser('stats', help='Show some stats')
+    healthcheck_parser = subparsers.add_parser('healthcheck', help='Check that the service is running and the last backups succeeded recently, for monitoring. Exits with 1 if a problem is found')
+    
+    healthcheck_parser.add_argument('--max-backup-age', dest='max_backup_age', type=int, default=26, help='Maximum age in hours of the last successful backup of each source of the scheduled jobs. Default: 26')
+    healthcheck_parser.add_argument('--max-replication-age', dest='max_replication_age', type=int, help='Maximum age in hours of the last successful replication of each source of the replication jobs - optional (if not provided, replications are not checked)')
     
     stats_parser.add_argument('--json', dest='json', action='store_true', help='Output the stats in JSON format')
     stats_parser.add_argument('--size', dest='size', action='store_true', help='Also show the size of the latest version of each source on local storages. Can take a long time for large backups')
@@ -119,7 +123,7 @@ def main():
         }
         
         alt_job = {k : v for k, v in alt_job.items() if v is not None}
-    elif args.command == 'stats':
+    elif args.command in ('stats', 'healthcheck'):
         # change default log level for stats
         if not args.log_level:
             args.log_level = 'WARNING'
@@ -162,6 +166,17 @@ def main():
                 sys.exit(1)
             
             print(stats)
+        elif args.command == 'healthcheck':
+            # problems are printed one per line, so monitoring can show them as they are
+            problems = usbackup.healthcheck(max_backup_age=args.max_backup_age, max_replication_age=args.max_replication_age)
+            
+            if problems is False:
+                sys.exit(1)
+            
+            print('\n'.join(problems) if problems else 'OK')
+            
+            if problems:
+                sys.exit(1)
     except UsBackupRuntimeError as e:
         # inexistent jobs or sources given on the command line are reported like startup errors
         print(f"Error: {e}", file=sys.stderr)
