@@ -7,6 +7,7 @@ class ZfsDatasetsHandlerModel(HandlerBaseModel):
     handler: str = 'zfs_datasets'
     limit: list[str] = []
     exclude: list[str] = []
+    compressed: bool = True
 
 class ZfsDatasetsHandler(BackupHandler):
     handler: str = 'zfs_datasets'
@@ -16,6 +17,7 @@ class ZfsDatasetsHandler(BackupHandler):
 
         self._limit: list[str] = model.limit
         self._exclude: list[str] = model.exclude
+        self._compressed: bool = model.compressed
 
     async def backup(self, dest: PathModel, dest_link: PathModel | None = None) -> None:
         self._logger.info(f'Fetching datasets from "{self._host}"')
@@ -56,7 +58,8 @@ class ZfsDatasetsHandler(BackupHandler):
                 with FsAdapter.open(dest.join(file_name), 'wb') as f:
                     self._logger.info(f'Streaming snapshot "{zfs_snapshot_name}" from "{self._host}" to "{dest.path}"')
 
-                    await CmdExec.exec(['zfs', 'send', zfs_snapshot_name], host=self._host, stdout=f)
+                    # compressed blocks are sent as they are stored, so the stream is smaller and nothing is decompressed on the host
+                    await CmdExec.exec(['zfs', 'send', *(['-c'] if self._compressed else []), zfs_snapshot_name], host=self._host, stdout=f)
             finally:
                 self._logger.info(f'Deleting snapshot "{zfs_snapshot_name}" on "{self._host}"')
 

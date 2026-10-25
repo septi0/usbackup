@@ -17,6 +17,7 @@ sources:
     - handler: zfs_datasets # enable ZFS datasets backup
       limit: [dataset1, dataset2] # list of datasets to backup - optional (if no datasets are provided, all datasets will be included, except the ones in the exclude list)
       exclude: [dataset3] # list of datasets to exclude from the backup - optional
+      compressed: true # send the blocks compressed as they are stored on disk (zfs send -c), which makes the streams smaller. Restored with zfs receive as usual. Default: true
 
     - handler: homeassistant # enable Home Assistant config backup
 
