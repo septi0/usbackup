@@ -294,6 +294,29 @@ usbackup healthcheck --max-backup-age 26 --max-replication-age 720
 
 Prints `OK` and exits with `0` when the service is running and every source of the scheduled backup jobs had a successful backup in the last 26 hours (and, with `--max-replication-age`, a successful replication in the last 30 days). Otherwise it prints one line per problem and exits with `1`, so it can be used directly by monitoring tools (e.g. as a Checkmk local check). Manual jobs are only checked for replications.
 
+## Restoring
+
+Backups are plain files, so you don't need UsBackup to restore them. Each run creates a version folder:
+
+```
+<storage path>/<source>/<YYYY_MM_DD-HH_MM_SS>/<handler>/...
+```
+
+`latest` in each source folder points to the newest version that completed successfully. Replicated copies have the same layout, so the steps below work for them too.
+
+What each handler stores and how to put it back:
+
+- `files`: the copied paths, e.g. `files/etc/...`. Copy back what you need, e.g. `rsync -a <version>/files/etc/ root@host:/etc/`. In archive mode it's a single `files/archive.tar.gz`, extract it with `tar xzf`.
+- `ftp`: the downloaded paths, e.g. `ftp/public_html/...`. Upload them back with any FTP client.
+- `zfs_datasets`: one stream per dataset, e.g. `zfs_datasets/rpool_data.zfs` for `rpool/data`. Restore it with `zfs receive rpool/data < rpool_data.zfs`. The dataset must not exist yet, add `-F` to overwrite an existing one.
+- `proxmox_vms`: one dump per VM, e.g. `proxmox_vms/vzdump-qemu-100.vma.zst`. Copy it to a Proxmox host and run `qmrestore vzdump-qemu-100.vma.zst 100` (add `--storage <name>` to pick where the disks go).
+- `homeassistant`: `homeassistant/archive.tar`, a regular Home Assistant backup. Upload it from the backups page in Home Assistant, or pick it during onboarding on a new install.
+- `unifi`: `unifi/unifi_backup.unifi`. Restore it from the backup settings of the UniFi controller.
+- `truenas`: `truenas/freenas-v1.db` and `truenas/pwenc_secret`. Upload the database from the TrueNAS configuration page. To keep saved passwords, put both files in a `.tar` and upload that instead.
+- `openwrt`: `openwrt/archive.tar.gz`, the same archive as `sysupgrade -b`. Copy it to the router and run `sysupgrade -r archive.tar.gz`, or upload it from LuCI.
+
+It's a good idea to try a restore once in a while, before you actually need one.
+
 ## Configuration file
 
 For a sample configuration file see `config.sample.yml` file. Aditionally, you can copy the file to `/etc/usbackup/config.yml`, `/etc/opt/usbackup/config.yml` or `~/.config/usbackup/config.yml` (or where you want as long as you provide the `--config` parameter) and adjust the values to your needs.
