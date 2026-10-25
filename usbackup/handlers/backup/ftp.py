@@ -14,7 +14,7 @@ class FtpHandlerModel(HandlerBaseModel):
     exclude: list[str] = []
     tls: bool = False
     mode: Literal['incremental', 'full'] = 'incremental'
-    server: str = ''
+    server: str
     user: str | None = None
     password: str | None = None
 

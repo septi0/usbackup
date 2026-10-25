@@ -5,7 +5,7 @@ from usbackup.handlers.backup import HandlerBaseModel, BackupHandler, BackupHand
 
 class UnifiHandlerModel(HandlerBaseModel):
     handler: str = 'unifi'
-    server: str = ''
+    server: str
     user: str | None = None
     password: str | None = None
 
