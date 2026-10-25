@@ -433,24 +433,38 @@ class UsBackupManager:
         return False
             
     async def _get_stats(self, format: str) -> str:
-        backups = {}
+        sources = [source.name for source in self._model.sources]
+        storages = [storage.name for storage in self._model.storages]
         
-        for name, backup in self._datastore.get('backups', {}).items():
-            backups[name] = {
-                'date': str(backup['date']),
-                'elapsed': str(backup['elapsed']),
-                'error': backup['error'],
-                'dest': backup['dest'],
-            }
+        # entries of sources and storages removed from the config are not shown
+        backups = {name: self._get_stats_entry(backup) for name, backup in self._datastore.get('backups', {}).items() if name in sources}
+        replications = {}
+        
+        for storage, entries in self._datastore.get('replications', {}).items():
+            if storage in storages:
+                replications[storage] = {name: self._get_stats_entry(replication) for name, replication in entries.items() if name in sources}
         
         stats = {
             'service_running': self._is_service_running(),
             'last_manual_run': str(self._datastore.get('last_manual_run', '')),
             'last_scheduled_run': str(self._datastore.get('last_scheduled_run', '')),
             'backups': backups,
+            'replications': replications,
         }
         
         return self._format_stats(stats, format)
+    
+    def _get_stats_entry(self, entry: dict) -> dict:
+        # entries written before version counts existed, or only by a prune, lack some fields
+        return {
+            'date': str(entry['date']) if 'date' in entry else None,
+            'elapsed': str(entry['elapsed']) if 'elapsed' in entry else None,
+            'error': entry.get('error'),
+            'dest': entry.get('dest'),
+            'versions': entry.get('versions'),
+            'oldest': entry.get('oldest'),
+            'newest': entry.get('newest'),
+        }
     
     async def _run_due_jobs(self, jobs: list[JobService], minutes: list[datetime.datetime]) -> None:
         tasks = []
@@ -494,6 +508,7 @@ class UsBackupManager:
                 'last_manual_run': 'Last manual run',
                 'last_scheduled_run': 'Last scheduled run',
                 'backups': 'Backups',
+                'replications': 'Replications',
             }
             
             output = []
@@ -504,10 +519,14 @@ class UsBackupManager:
             output.append('  ' + '-' * 20)
             for name, backup in stats['backups'].items():
                 output.append(f"  {name}:")
-                output.append(f"    date: {backup['date']}")
-                output.append(f"    elapsed: {backup['elapsed']}")
-                output.append(f"    error: {backup['error']}")
-                output.append(f"    dest: {backup['dest']}")
+                output += [f"    {key}: {value}" for key, value in backup.items()]
+            output.append(f"{dictionary['replications']}:")
+            output.append('  ' + '-' * 20)
+            for storage, replications in stats['replications'].items():
+                output.append(f"  {storage}:")
+                for name, replication in replications.items():
+                    output.append(f"    {name}:")
+                    output += [f"      {key}: {value}" for key, value in replication.items()]
             return '\n'.join(output)
         
         raise UsBackupRuntimeError(f"Unknown format {format}")

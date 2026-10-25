@@ -137,13 +137,18 @@ class JobService:
                 logger.info(f'No retention policy. Nothing to prune')
                 continue
             
-            runner = PruneRunner(ContextService(source, self._dest, logger=logger), retention_policy, cleanup=self._cleanup, logger=logger)
+            context = ContextService(source, self._dest, logger=logger)
+            runner = PruneRunner(context, retention_policy, cleanup=self._cleanup, logger=logger)
             
             try:
                 await runner.run(dry_run=dry_run)
             except Exception as e:
                 logger.exception(f'Failed to prune. {e}')
                 failed = True
+                continue
+            
+            if not dry_run:
+                self._store_stats(source.name, await self._get_versions_stats(context))
         
         return not failed
     
@@ -179,16 +184,17 @@ class JobService:
                 self._logger.exception(e)
                 result = ResultModel(context, error=e)
             
-            if self._type == 'backup':
-                # Store only primitives so pickle never depends on third-party class definitions
-                backup = {
-                    'date': result.date,
-                    'elapsed': result.elapsed,
-                    'error': str(result.error) if result.error else None,
-                    'dest': str(result.dest),
-                }
-                # updated atomically so concurrent processes never overwrite each other's entries
-                self._datastore.update('backups', lambda backups: {**backups, context.name: backup}, {})
+            # a failed run keeps the version counts of the previous run, since the versions may not even be readable
+            versions = {} if result.error else await self._get_versions_stats(context)
+            
+            # Store only primitives so pickle never depends on third-party class definitions
+            self._store_stats(context.name, {
+                'date': result.date,
+                'elapsed': result.elapsed,
+                'error': str(result.error) if result.error else None,
+                'dest': str(result.dest),
+                **versions,
+            })
                 
             result.set_message(log_stream.getvalue())
                 
@@ -196,6 +202,25 @@ class JobService:
             log_stream.close()
             
             return result
+    
+    async def _get_versions_stats(self, context: ContextService) -> dict:
+        versions = await context.get_versions()
+        
+        return {
+            'versions': len(versions),
+            'oldest': versions[0].version if versions else None,
+            'newest': versions[-1].version if versions else None,
+        }
+    
+    def _store_stats(self, source: str, values: dict) -> None:
+        merge = lambda entries, key: {**entries, key: {**entries.get(key, {}), **values}}
+        
+        # updated atomically so concurrent processes never overwrite each other's entries
+        if self._type == 'backup':
+            self._datastore.update('backups', lambda backups: merge(backups, source), {})
+        else:
+            # a source is usually replicated to several storages, so replications are kept per destination storage
+            self._datastore.update('replications', lambda replications: {**replications, self._dest.name: merge(replications.get(self._dest.name, {}), source)}, {})
     
     def is_job_due(self, now: datetime.datetime | None = None) -> bool:
         cron_schedule = self._schedule

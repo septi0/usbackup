@@ -261,6 +261,17 @@ usbackup run --type replication --replicate storage1 --dest storage2 --limit hos
 > **Note:** The destination storage for replication jobs can be a remote Linux host over SSH. Configure it with a host in the `storages` section of the config file (e.g. `path: ssh://user@backup-host:22/path/to/storage`). The remote host needs `rsync` (incremental and full modes), `sh` and the standard coreutils, and key based SSH authentication is recommended. Remote storages can only be used as replication destinations: backup jobs and replication sources must use local storages. Only the latest successfully completed version of each source is replicated.
 
 > **Note:** SSH connections to remote storages are reused while a source is being replicated, through control sockets kept in a private runtime directory (`/run/usbackup/ssh` for root). If that directory cannot be made private, connections are not reused and a warning is logged.
+
+---
+
+#### Show the stats
+
+```
+usbackup stats
+```
+
+Shows whether the service is running and the last result of each source's backups and replications (per destination storage), with the number of versions and the oldest and newest version left after that run or after the last prune. Sources and storages removed from the config are not shown.
+
 ## Configuration file
 
 For a sample configuration file see `config.sample.yml` file. Aditionally, you can copy the file to `/etc/usbackup/config.yml`, `/etc/opt/usbackup/config.yml` or `~/.config/usbackup/config.yml` (or where you want as long as you provide the `--config` parameter) and adjust the values to your needs.
