@@ -7,6 +7,7 @@ from usbackup.models.host import HostModel
 from usbackup.models.handler_base import HandlerBaseModel
 from usbackup.models.version import BackupVersionModel
 from usbackup.models.path import PathModel
+from usbackup.exceptions import UsBackupRuntimeError
 
 __all__ = ['ContextService']
 
@@ -68,6 +69,10 @@ class ContextService:
         version_date = datetime.datetime.now()
         version = version_date.strftime(self._version_format)
         version_path = self._destination.join(version)
+        
+        # never write into, or later remove on failure, a version that already exists (e.g. a second run within the same second)
+        if await FsAdapter.exists(version_path):
+            raise UsBackupRuntimeError(f'Version "{version}" already exists')
         
         # create backup directory
         self._logger.info(f'Creating version directory {version_path}')

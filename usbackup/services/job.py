@@ -172,7 +172,7 @@ class JobService:
             
             return result
     
-    def is_job_due(self) -> bool:
+    def is_job_due(self, now: datetime.datetime | None = None) -> bool:
         cron_schedule = self._schedule
         
         self._logger.debug(f"Checking if job {self._name} is due with schedule {cron_schedule}")
@@ -184,7 +184,7 @@ class JobService:
         schedule = cron_schedule.split()
         
         minute, hour, day, month, weekday = schedule
-        now = datetime.datetime.now()
+        now = now or datetime.datetime.now()
         
         if not self._is_cron_field_due(minute, now.minute, 0):
             return False

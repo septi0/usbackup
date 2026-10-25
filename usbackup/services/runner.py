@@ -53,7 +53,8 @@ class Runner:
             'last': {'prev': None, 'filter': None, 'versions': []},
             'hourly': {'prev': None, 'filter': '%Y-%m-%d %H', 'versions': []},
             'daily': {'prev': None, 'filter': '%Y-%m-%d', 'versions': []},
-            'weekly': {'prev': None, 'filter': '%Y-%W', 'versions': []},
+            # iso weeks are never split at new year, unlike %Y-%W
+            'weekly': {'prev': None, 'filter': '%G-%V', 'versions': []},
             'monthly': {'prev': None, 'filter': '%Y-%m', 'versions': []},
             'yearly': {'prev': None, 'filter': '%Y', 'versions': []},
         }

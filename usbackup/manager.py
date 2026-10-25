@@ -24,6 +24,9 @@ from typing import Any
 __all__ = ['UsBackupManager']
 
 class UsBackupManager:
+    # like cron, clock changes of up to 3 hours (daylight saving time) are followed minute by minute, larger ones restart the schedule
+    _max_clock_jump: int = 180
+    
     def __init__(self, *, log_file: str | None = None, log_level: str | None = None, config_file: str | None = None, alt_job: dict | None = None) -> None:
         self._pid_filepath: str = self._get_pid_filepath()
 
@@ -319,24 +322,34 @@ class UsBackupManager:
         try:
             self._logger.info(f'Starting service with pid {os.getpid()}')
 
-            service_run_time = datetime.datetime.now().replace(second=0, microsecond=0)
+            last_minute = datetime.datetime.now().replace(second=0, microsecond=0) - datetime.timedelta(minutes=1)
 
-            # run every minute
+            # every wall clock minute is checked once, like cron, also when daylight saving time moves the clock
             while True:
-                asyncio.create_task(self._run_due_jobs(jobs))
+                now = datetime.datetime.now().replace(second=0, microsecond=0)
+                elapsed = int((now - last_minute).total_seconds() // 60)
 
-                # calculate the next scheduled run_time for the service
-                service_run_time += datetime.timedelta(minutes=1)
+                if elapsed > self._max_clock_jump:
+                    self._logger.warning(f'Clock jumped forward by {elapsed} minutes. Jobs due in the skipped minutes are not run')
+                    asyncio.create_task(self._run_due_jobs(jobs, [now]))
+                    last_minute = now
+                elif elapsed > 1:
+                    # minutes skipped by a forward clock change or a short stall still get their jobs run, once
+                    self._logger.warning(f'Clock jumped forward by {elapsed} minutes. Running the jobs due in the skipped minutes')
+                    asyncio.create_task(self._run_due_jobs(jobs, [last_minute + datetime.timedelta(minutes=minute) for minute in range(1, elapsed + 1)]))
+                    last_minute = now
+                elif elapsed == 1:
+                    asyncio.create_task(self._run_due_jobs(jobs, [now]))
+                    last_minute = now
+                elif elapsed < -self._max_clock_jump:
+                    self._logger.warning(f'Clock jumped back by {-elapsed} minutes. The schedule continues from the new time')
+                    asyncio.create_task(self._run_due_jobs(jobs, [now]))
+                    last_minute = now
 
-                # calculate the time left until the next run_time
-                time_left = (service_run_time - datetime.datetime.now()).total_seconds()
+                # after a short backward change (e.g. daylight saving time ending) the minutes that already ran are not run again
 
-                # after a suspend, a clock change or a stall the schedule is realigned to the next minute, like cron skipping missed runs
-                if time_left < 0 or time_left > 60:
-                    self._logger.warning(f'Service is out of sync with the clock by {abs(int(time_left))} s. Missed minutes are skipped')
-
-                    service_run_time = datetime.datetime.now().replace(second=0, microsecond=0) + datetime.timedelta(minutes=1)
-                    time_left = (service_run_time - datetime.datetime.now()).total_seconds()
+                current = datetime.datetime.now()
+                time_left = (current.replace(second=0, microsecond=0) + datetime.timedelta(minutes=1) - current).total_seconds()
 
                 self._logger.debug(f'Next run in {time_left} s')
 
@@ -407,11 +420,12 @@ class UsBackupManager:
         
         return self._format_stats(stats, format)
     
-    async def _run_due_jobs(self, jobs: list[JobService]) -> None:
+    async def _run_due_jobs(self, jobs: list[JobService], minutes: list[datetime.datetime]) -> None:
         tasks = []
             
+        # a job due in several of the minutes is still run once
         for job in jobs:
-            if not job.is_job_due():
+            if not any(job.is_job_due(minute) for minute in minutes):
                 continue
             
             if job.is_running:
