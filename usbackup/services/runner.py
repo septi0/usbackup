@@ -22,7 +22,7 @@ class Runner:
         self._id: str = str(uuid.uuid4())
         self._lock_holder: str | None = None
     
-    async def apply_retention_policy(self) -> int:
+    async def apply_retention_policy(self, *, dry_run: bool = False) -> int:
         if not self._retention_policy:
             return -1
         
@@ -44,6 +44,11 @@ class Runner:
         prune = [version for version in versions if version.version not in protected]
         
         for version in prune:
+            # a dry run only reports what the policy would remove
+            if dry_run:
+                self._logger.info(f'Would remove version "{version.version}"')
+                continue
+            
             await self._context.remove_version(version)
             
         return versions_cnt

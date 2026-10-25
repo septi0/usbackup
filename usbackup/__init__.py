@@ -49,8 +49,9 @@ def main():
     daemon_parser = subparsers.add_parser('daemon', help='Run as daemon and perform actions based on configured jobs')
     job_parser = subparsers.add_parser('run', help='Run a job based on the provided paramaters')
     
+    job_parser.add_argument('--job', dest='job', help='Name of a configured job to run, as configured. Can only be combined with --limit and --exclude, to run some of its sources')
     job_parser.add_argument('--type', dest='type', choices=['backup', 'replication'] , help='The type of the job to run. Available types: backup, replication')
-    job_parser.add_argument('--dest', dest='dest', required=True, help='Destination storage to be used when performing the job')
+    job_parser.add_argument('--dest', dest='dest', help='Destination storage to be used when performing the job - required unless --job is used')
     job_parser.add_argument('--replicate', dest='replicate', help='Source storage to read the data from when performing the replication job - required when the job type is replication, otherwise ignored')
     job_parser.add_argument('--replication-mode', dest='replication_mode', choices=['incremental', 'full', 'archive'], help='Replication mode. Available options: incremental, full, archive. Default: incremental')
     job_parser.add_argument('--limit', dest='limit', action='append', help='List of sources for the job (if no sources are provided, all sources will be included, except the ones in the exclude list)')
@@ -59,6 +60,13 @@ def main():
     job_parser.add_argument('--source-retention-policy', dest='sources_retention_policy', type=parse_source_retention_policy, action='append', help='Retention policy for a specific source, replacing the job retention policy for that source. Can be used multiple times. <source>:last=<NR>,hourly=<NR>,daily=<NR>,weekly=<NR>,monthly=<NR>,yearly=<NR>. Example: --source-retention-policy host1:daily=30,monthly=12')
     job_parser.add_argument('--notification-policy', dest='notification_policy', type=str, help='Notification policy. Available options: never, always, on-failure.')
     job_parser.add_argument('--concurrency', dest='concurrency', type=int, help='Concurrency. Number of concurrent hosts to backup')
+    
+    prune_parser = subparsers.add_parser('prune', help='Apply the retention policies of a configured job, without running it')
+    
+    prune_parser.add_argument('--job', dest='job', required=True, help='Name of the configured job whose retention policies are applied')
+    prune_parser.add_argument('--limit', dest='limit', action='append', help='Sources of the job to prune (if no sources are provided, all sources of the job will be pruned, except the ones in the exclude list)')
+    prune_parser.add_argument('--exclude', dest='exclude', action='append', help='Sources of the job to skip')
+    prune_parser.add_argument('--dry-run', dest='dry_run', action='store_true', help='Only show which versions would be removed, without removing them')
     
     configtest_parser = subparsers.add_parser('configtest', help='Test the configuration file')
     stats_parser = subparsers.add_parser('stats', help='Show some stats')
@@ -73,7 +81,17 @@ def main():
       
     alt_job = None
       
-    if args.command == 'run':
+    if args.command == 'run' and args.job:
+        # a configured job runs as configured, it can only be narrowed to some of its sources
+        job_options = {'type': '--type', 'dest': '--dest', 'replicate': '--replicate', 'replication_mode': '--replication-mode', 'retention_policy': '--retention-policy', 'sources_retention_policy': '--source-retention-policy', 'notification_policy': '--notification-policy', 'concurrency': '--concurrency'}
+        used_options = [option for name, option in job_options.items() if getattr(args, name) is not None]
+        
+        if used_options:
+            job_parser.error(f'argument --job: not allowed with {", ".join(used_options)}')
+    elif args.command == 'run':
+        if not args.dest:
+            job_parser.error('the following arguments are required: --dest (unless --job is used)')
+        
         sources_retention_policy = None
         
         if args.sources_retention_policy:
@@ -121,23 +139,31 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(2)
     
-    if args.command == 'daemon':
-        # a failed service exits with a non zero code so the service manager can restart it
-        if not usbackup.run_forever():
-            sys.exit(1)
-    elif args.command == 'run':
-        # failed or interrupted runs exit with a non zero code so schedulers and monitoring can detect them
-        if not usbackup.run_once():
-            sys.exit(1)
-    elif args.command == 'configtest':
-        print("Configuration file is valid")
-    elif args.command == 'stats':
-        format = 'json' if args.json else 'text'
-        stats = usbackup.stats(format=format)
-        
-        if not isinstance(stats, str):
-            sys.exit(1)
-        
-        print(stats)
+    try:
+        if args.command == 'daemon':
+            # a failed service exits with a non zero code so the service manager can restart it
+            if not usbackup.run_forever():
+                sys.exit(1)
+        elif args.command == 'run':
+            # failed or interrupted runs exit with a non zero code so schedulers and monitoring can detect them
+            if not usbackup.run_once(args.job, limit=args.limit if args.job else None, exclude=args.exclude if args.job else None):
+                sys.exit(1)
+        elif args.command == 'prune':
+            if not usbackup.prune(args.job, limit=args.limit, exclude=args.exclude, dry_run=args.dry_run):
+                sys.exit(1)
+        elif args.command == 'configtest':
+            print("Configuration file is valid")
+        elif args.command == 'stats':
+            format = 'json' if args.json else 'text'
+            stats = usbackup.stats(format=format)
+            
+            if not isinstance(stats, str):
+                sys.exit(1)
+            
+            print(stats)
+    except UsBackupRuntimeError as e:
+        # inexistent jobs or sources given on the command line are reported like startup errors
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(2)
 
     sys.exit(0)

@@ -13,6 +13,7 @@ from usbackup.models.source import SourceModel
 from usbackup.services.context import ContextService
 from usbackup.services.backup_runner import BackupRunner
 from usbackup.services.replication_runner import ReplicationRunner
+from usbackup.services.prune_runner import PruneRunner
 from usbackup.services.notifier import NotifierService
 from usbackup.exceptions import UsBackupRuntimeError
 from usbackup.utils.logging import NoExceptionFormatter
@@ -121,6 +122,30 @@ class JobService:
         
         # sources whose task crashed have no result, so they count as failed too
         return not errors and len(results) == len(self._sources) and not any(result.error for result in results)
+    
+    async def prune(self, *, dry_run: bool = False) -> bool:
+        """
+        Apply the retention policies to the job sources, without running the job. Returns True if every source was pruned.
+        """
+        failed = False
+        
+        for source in self._sources:
+            logger = self._logger.getChild(source.name)
+            retention_policy = self._sources_retention_policy.get(source.name, self._retention_policy)
+            
+            if not retention_policy:
+                logger.info(f'No retention policy. Nothing to prune')
+                continue
+            
+            runner = PruneRunner(ContextService(source, self._dest, logger=logger), retention_policy, cleanup=self._cleanup, logger=logger)
+            
+            try:
+                await runner.run(dry_run=dry_run)
+            except Exception as e:
+                logger.exception(f'Failed to prune. {e}')
+                failed = True
+        
+        return not failed
     
     async def _semaphore_task_runner(self, source: SourceModel, semaphore: asyncio.Semaphore) -> ResultModel:
         async with semaphore:

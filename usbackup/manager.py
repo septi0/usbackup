@@ -37,9 +37,23 @@ class UsBackupManager:
         self._datastore: Datastore = Datastore(datastore_filepath)
         self._cleanup: CleanupQueue = CleanupQueue(datastore=self._datastore, lock_dir=os.path.join(os.path.dirname(datastore_filepath), 'cleanup'))
     
-    def run_once(self) -> bool:
-        """ Run the backup job once, without scheduling. Returns True if the job completed successfully."""
-        return self._run_main(self._do_run_once) is True
+    def run_once(self, job_name: str | None = None, *, limit: list[str] | None = None, exclude: list[str] | None = None) -> bool:
+        """ Run a job once, without scheduling: the configured job with the given name, otherwise the job built from the command line. Returns True if the job completed successfully."""
+        job = self._job_factory(self._get_job_model(job_name) if job_name else self._model.jobs[0], limit=limit, exclude=exclude)
+        
+        return self._run_main(self._do_run_once, job) is True
+    
+    def prune(self, job_name: str, *, limit: list[str] | None = None, exclude: list[str] | None = None, dry_run: bool = False) -> bool:
+        """ Apply the retention policies of a configured job, without running it. Returns True if every source was pruned."""
+        job_model = self._get_job_model(job_name)
+        
+        if not job_model.retention_policy and not job_model.sources_retention_policy:
+            raise UsBackupRuntimeError(f'Job "{job_name}" has no retention policy')
+        
+        job = self._job_factory(job_model, limit=limit, exclude=exclude)
+        
+        # a dry run only reads, so it never runs cleanup jobs either
+        return self._run_main(job.prune, dry_run=dry_run, recover=not dry_run) is True
     
     def run_forever(self) -> bool:
         """ Run the backup job forever, scheduling it every minute. Returns False if the service failed."""
@@ -182,7 +196,15 @@ class UsBackupManager:
 
         return NotifierService(job_model, handler_models, logger=notifier_logger)
     
-    def _job_factory(self, model: JobModel) -> JobService:
+    def _get_job_model(self, name: str) -> JobModel:
+        job_model = next((job for job in self._model.jobs if job.name == name), None)
+        
+        if not job_model:
+            raise UsBackupRuntimeError(f'Job "{name}" does not exist')
+        
+        return job_model
+    
+    def _job_factory(self, model: JobModel, *, limit: list[str] | None = None, exclude: list[str] | None = None) -> JobService:
         source_models = self._model.sources
         
         # filter source models
@@ -191,6 +213,18 @@ class UsBackupManager:
         
         if model.exclude:
             source_models = [source for source in source_models if source.name not in model.exclude]
+        
+        # a manual run of a configured job can be narrowed to some of its sources
+        unknown_sources = [name for name in [*(limit or []), *(exclude or [])] if name not in [source.name for source in source_models]]
+        
+        if unknown_sources:
+            raise UsBackupRuntimeError(f'Job "{model.name}" has no sources named: {", ".join(unknown_sources)}')
+        
+        if limit:
+            source_models = [source for source in source_models if source.name in limit]
+        
+        if exclude:
+            source_models = [source for source in source_models if source.name not in exclude]
             
         if not source_models:
             raise UsBackupRuntimeError("No sources left to backup after limit/exclude filters")
@@ -293,10 +327,8 @@ class UsBackupManager:
                     'task': task,
                 })
                 
-    async def _do_run_once(self) -> bool:
+    async def _do_run_once(self, job: JobService) -> bool:
         self._datastore.set('last_manual_run', datetime.datetime.now())
-        
-        job = self._job_factory(self._model.jobs[0])
         
         return await job.run()
         

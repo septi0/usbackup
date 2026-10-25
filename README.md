@@ -99,7 +99,7 @@ Check "Command line arguments" section for more information about the available 
 ## Command line arguments
 
 ```
-usbackup [-h] [--config CONFIG_FILE] [--log LOG_FILE] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--version] {daemon,run,configtest,stats} ...
+usbackup [-h] [--config CONFIG_FILE] [--log LOG_FILE] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--version] {daemon,run,prune,configtest,stats} ...
 
 options:
   -h, --help            show this help message and exit
@@ -110,14 +110,15 @@ options:
   --version             show program's version number and exit
 
 Commands:
-  {daemon,run,configtest,stats}
+  {daemon,run,prune,configtest,stats}
     daemon              Run as daemon and perform actions based on configured jobs
     
     run                 Run a job based on the provided paramaters
       options:
+        --job JOB             Name of a configured job to run, as configured. Can only be combined with --limit and --exclude, to run some of its sources
         --type {backup,replication}
                               The type of the job to run. Available types: backup, replication. Default: backup
-        --dest DEST           Destination storage to be used when performing the job
+        --dest DEST           Destination storage to be used when performing the job - required unless --job is used
         --replicate REPLICATE
                               Source storage to read the data from when performing the replication job - required when the job type is replication, otherwise ignored
         --replication-mode {incremental,full,archive}
@@ -133,6 +134,13 @@ Commands:
         --concurrency CONCURRENCY
                               Concurrency. Number of concurrent hosts to backup. Default: 1
 
+    prune               Apply the retention policies of a configured job, without running it
+      options:
+        --job JOB             Name of the configured job whose retention policies are applied
+        --limit LIMIT         Sources of the job to prune (if no sources are provided, all sources of the job will be pruned, except the ones in the exclude list)
+        --exclude EXCLUDE     Sources of the job to skip
+        --dry-run             Only show which versions would be removed, without removing them
+
     configtest          Test the configuration file
 
     stats               Show some stats
@@ -143,6 +151,44 @@ Commands:
 Exit codes: `0` on success, `1` if a run or the service failed (including any failed source or an interrupted run), `2` for invalid arguments, an invalid configuration or other startup errors.
 
 ## Examples
+
+#### Run a configured job manually
+
+Run the `job1` job from the config file, with its storages, retention policies, notifications and pre / post run commands:
+
+```
+usbackup run --job job1
+```
+
+---
+
+Run it only for some of its sources (e.g. after a failed night):
+
+```
+usbackup run --job job1 --limit host1
+```
+
+---
+
+#### Prune the versions of a configured job
+
+Show which versions the retention policies of `job1` would remove, without removing anything:
+
+```
+usbackup prune --job job1 --dry-run
+```
+
+---
+
+Remove them now, instead of waiting for the next run of the job (sources being backed up at that moment are reported as failed and left untouched):
+
+```
+usbackup prune --job job1
+```
+
+> **Note:** The current period of each category is not counted, so versions made today may be removed by `daily` unless `last` keeps them, like when the job runs. The newest version of each source is always kept.
+
+---
 
 #### Run a manual backup job
 
