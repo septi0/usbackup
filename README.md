@@ -146,6 +146,7 @@ Commands:
     stats               Show some stats
       options:
         --json          Output the stats in JSON format
+        --size          Also show the size of the latest version of each source on local storages. Can take a long time for large backups
 ```
 
 Exit codes: `0` on success, `1` if a run or the service failed (including any failed source or an interrupted run), `2` for invalid arguments, an invalid configuration or other startup errors.
@@ -273,6 +274,8 @@ usbackup stats
 ```
 
 Shows whether the service is running and the last result of each source's backups and replications (per destination storage), with the number of versions and the oldest and newest version left after that run or after the last prune. Sources and storages removed from the config are not shown.
+
+Add `--size` to also show the size of the latest version of each source (`unavailable` for remote storages and for removable disks that are not mounted). It reads every file of those versions, so it can take a while for large backups.
 
 ## Configuration file
 

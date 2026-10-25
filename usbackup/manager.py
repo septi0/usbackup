@@ -59,10 +59,10 @@ class UsBackupManager:
         """ Run the backup job forever, scheduling it every minute. Returns False if the service failed."""
         return self._run_main(self._do_run_forever) is not False
     
-    def stats(self, format: str) -> None:
-        """ Get the current stats of the backup service."""
+    def stats(self, format: str, size: bool = False) -> None:
+        """ Get the current stats of the backup service, optionally with the size of the latest versions."""
         # a read only query never runs cleanup jobs, which may need slow or unreachable remote hosts
-        return self._run_main(self._get_stats, format=format, recover=False)
+        return self._run_main(self._get_stats, format=format, size=size, recover=False)
     
     def _load_config(self, *, config_file: str | None = None, alt_job: dict | None = None) -> dict:
         if not config_file:
@@ -432,7 +432,7 @@ class UsBackupManager:
         
         return False
             
-    async def _get_stats(self, format: str) -> str:
+    async def _get_stats(self, format: str, size: bool = False) -> str:
         sources = [source.name for source in self._model.sources]
         storages = [storage.name for storage in self._model.storages]
         
@@ -444,6 +444,11 @@ class UsBackupManager:
             if storage in storages:
                 replications[storage] = {name: self._get_stats_entry(replication) for name, replication in entries.items() if name in sources}
         
+        # only measured on request, since it reads every file of the latest versions
+        if size:
+            for entry in [*backups.values(), *[replication for entries in replications.values() for replication in entries.values()]]:
+                entry['size'] = await self._get_latest_version_size(entry['dest'])
+        
         stats = {
             'service_running': self._is_service_running(),
             'last_manual_run': str(self._datastore.get('last_manual_run', '')),
@@ -453,6 +458,21 @@ class UsBackupManager:
         }
         
         return self._format_stats(stats, format)
+    
+    async def _get_latest_version_size(self, dest: str | None) -> str:
+        latest = os.path.join(dest, 'latest') if dest and os.path.isabs(dest) else None
+        
+        # remote storages and versions that are not there (e.g. on an unplugged removable disk) are not measured
+        if not latest or not os.path.isdir(latest):
+            return 'unavailable'
+        
+        try:
+            output = await CmdExec.exec(['du', '-sh', os.path.realpath(latest)])
+        except Exception as e:
+            self._logger.warning(f'Failed to measure "{latest}": {e}')
+            return 'unavailable'
+        
+        return output.split()[0]
     
     def _get_stats_entry(self, entry: dict) -> dict:
         # entries written before version counts existed, or only by a prune, lack some fields

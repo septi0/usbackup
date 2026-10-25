@@ -72,6 +72,7 @@ def main():
     stats_parser = subparsers.add_parser('stats', help='Show some stats')
     
     stats_parser.add_argument('--json', dest='json', action='store_true', help='Output the stats in JSON format')
+    stats_parser.add_argument('--size', dest='size', action='store_true', help='Also show the size of the latest version of each source on local storages. Can take a long time for large backups')
     
     args = parser.parse_args()
 
@@ -155,7 +156,7 @@ def main():
             print("Configuration file is valid")
         elif args.command == 'stats':
             format = 'json' if args.json else 'text'
-            stats = usbackup.stats(format=format)
+            stats = usbackup.stats(format=format, size=args.size)
             
             if not isinstance(stats, str):
                 sys.exit(1)
