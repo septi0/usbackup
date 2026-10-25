@@ -29,10 +29,12 @@ sources:
       bwlimit: # limit the bandwidth - optional
 
     - handler: unifi # enable Unifi controller backup
+      server: unifi.example.com # Address of the Unifi controller (UniFi OS)
       user: unifi_user # Unifi controller username
       password: unifi_password # Unifi controller password
 
     - handler: ftp # enable FTP/FTPS backup
+      server: ftp.example.com # Address of the FTP server
       limit: [/data, /config] # list of remote paths to download - optional (if omitted, downloads from /)
       exclude: [/data/tmp] # list of remote paths to exclude - optional
       tls: false # enable FTPS (FTP over TLS). Default: false

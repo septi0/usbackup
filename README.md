@@ -25,6 +25,8 @@ Version 1.x is still available in the `legacy` branch.
 - Jobs must reference existing storages (`dest`, `replicate`) and sources (`limit`, `exclude`), otherwise `configtest` reports the typo instead of the job failing or silently skipping it.
 - New runtime files: `data.db.lock` and a `cleanup` directory next to the datastore (whose directory is now private), and SSH control sockets in `/run/usbackup/ssh` (for root).
 
+**Upgrading to 2.9.** `zfs_datasets` now sends compressed streams by default (`zfs send -c`), so they take less space. They are restored with `zfs receive` as before. Set `compressed: false` on the handler to keep the old format.
+
 ## Features
 
 - Backup files (incremental, full, archive)
@@ -34,8 +36,12 @@ Version 1.x is still available in the `legacy` branch.
 - Backup ZFS datasets
 - Backup Home Assistant config
 - Backup Proxmox VMs
+- Backup UniFi controller
 - Remote or local sources
 - Replication to local or remote hosts
+- Retention policies per job or per source
+- Manual jobs and pruning from the command line
+- Health check for monitoring
 - Source configuration
 - Storage configuration
 - Job configuration
@@ -151,9 +157,9 @@ Commands:
     healthcheck         Check that the service is running and the last backups succeeded recently, for monitoring. Exits with 1 if a problem is found
       options:
         --max-backup-age MAX_BACKUP_AGE
-                        Maximum age in hours of the last successful backup of each source of the scheduled jobs. Default: 26
+                              Maximum age in hours of the last successful backup of each source of the scheduled jobs. Default: 26
         --max-replication-age MAX_REPLICATION_AGE
-                        Maximum age in hours of the last successful replication of each source of the replication jobs - optional (if not provided, replications are not checked)
+                              Maximum age in hours of the last successful replication of each source of the replication jobs - optional (if not provided, replications are not checked)
 ```
 
 Exit codes: `0` on success, `1` if a run or the service failed (including any failed source or an interrupted run), `2` for invalid arguments, an invalid configuration or other startup errors.
