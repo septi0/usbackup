@@ -69,6 +69,8 @@ class FilesHandler(BackupHandler):
                 'acls',
                 'xattrs',
                 'relative',
+                # holes of sparse files (e.g. disk images) are kept instead of being written out as zeros
+                'sparse',
             ]
 
             if self._exclude:

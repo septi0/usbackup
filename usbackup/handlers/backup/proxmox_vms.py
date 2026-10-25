@@ -1,4 +1,5 @@
 from typing import Literal
+from pydantic import Field
 from usbackup.libraries.remote_cmd import RemoteCmd
 from usbackup.libraries.cmd_exec import CmdExec
 from usbackup.libraries.fs_adapter import FsAdapter
@@ -12,6 +13,7 @@ class ProxmoxVmsHandlerModel(HandlerBaseModel):
     bwlimit: int | None = None
     mode: Literal['snapshot', 'suspend', 'stop'] = 'snapshot'
     compress: Literal['zstd', 'gzip', 'lzo', 'none'] = 'zstd'
+    zstd_threads: int = Field(0, ge=0)
 
 class ProxmoxVmsHandler(BackupHandler):
     handler: str = 'proxmox_vms'
@@ -24,6 +26,7 @@ class ProxmoxVmsHandler(BackupHandler):
         self._bwlimit: int | None = model.bwlimit
         self._mode: str = model.mode
         self._compress: str = model.compress
+        self._zstd_threads: int = model.zstd_threads
 
         self._compression_types = {
             'zstd': 'vma.zst',
@@ -73,7 +76,11 @@ class ProxmoxVmsHandler(BackupHandler):
         ]
         
         if self._bwlimit:
-            cmd_options.append(('bwlimit', self._bwlimit))
+            cmd_options.append(('bwlimit', str(self._bwlimit)))
+        
+        # vzdump compresses with a single thread unless told otherwise, 0 uses half of the host cores
+        if self._compress == 'zstd':
+            cmd_options.append(('zstd', str(self._zstd_threads)))
         
         cmd_options = CmdExec.parse_cmd_options(cmd_options)
         file_name = f'vzdump-qemu-{vm}.{self._compression_types[self._compress]}'

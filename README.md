@@ -25,7 +25,7 @@ Version 1.x is still available in the `legacy` branch.
 - Jobs must reference existing storages (`dest`, `replicate`) and sources (`limit`, `exclude`), otherwise `configtest` reports the typo instead of the job failing or silently skipping it.
 - New runtime files: `data.db.lock` and a `cleanup` directory next to the datastore (whose directory is now private), and SSH control sockets in `/run/usbackup/ssh` (for root).
 
-**Upgrading to 2.9.** `zfs_datasets` now sends compressed streams by default (`zfs send -c`), so they take less space. They are restored with `zfs receive` as before. Set `compressed: false` on the handler to keep the old format.
+**Upgrading to 2.9.** `zfs_datasets` now sends the blocks as they are stored on disk by default (`zfs send -Lec`), so the streams take less space. They are restored with `zfs receive` as before. Set `compressed: false` on the handler to keep the old format. Also, `files` backups and replications keep sparse files sparse, and `proxmox_vms` compresses with half of the host cores by default (see `zstd_threads`).
 
 ## Features
 

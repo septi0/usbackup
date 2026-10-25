@@ -17,13 +17,14 @@ sources:
     - handler: zfs_datasets # enable ZFS datasets backup
       limit: [dataset1, dataset2] # list of datasets to backup - optional (if no datasets are provided, all datasets will be included, except the ones in the exclude list)
       exclude: [dataset3] # list of datasets to exclude from the backup - optional
-      compressed: true # send the blocks compressed as they are stored on disk (zfs send -c), which makes the streams smaller. Restored with zfs receive as usual. Default: true
+      compressed: true # send the blocks as they are stored on disk (zfs send -Lec), which makes the streams smaller. Restored with zfs receive as usual. Default: true
 
     - handler: homeassistant # enable Home Assistant config backup
 
     - handler: proxmox_vms # enable Proxmox VMs backup
       mode: snapshot # available modes: snapshot, suspend, stop. Default: snapshot
       compress: zstd # available modes: zstd, gzip, lzo, none. Default: zstd
+      zstd_threads: 0 # threads used for zstd compression, 0 uses half of the host cores (vzdump --zstd). Default: 0
       limit: [100, 101] # list of VM IDs to backup - optional (if no VM IDs are provided, all VMs will be included, except the ones in the exclude list)
       exclude: [102] # list of VM IDs to exclude from the backup - optional
       bwlimit: # limit the bandwidth - optional

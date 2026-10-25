@@ -58,8 +58,8 @@ class ZfsDatasetsHandler(BackupHandler):
                 with FsAdapter.open(dest.join(file_name), 'wb') as f:
                     self._logger.info(f'Streaming snapshot "{zfs_snapshot_name}" from "{self._host}" to "{dest.path}"')
 
-                    # compressed blocks are sent as they are stored, so the stream is smaller and nothing is decompressed on the host
-                    await CmdExec.exec(['zfs', 'send', *(['-c'] if self._compressed else []), zfs_snapshot_name], host=self._host, stdout=f)
+                    # blocks are sent as they are stored (large, embedded and compressed), so the stream is smaller and nothing is decompressed on the host
+                    await CmdExec.exec(['zfs', 'send', *(['-L', '-e', '-c'] if self._compressed else []), zfs_snapshot_name], host=self._host, stdout=f)
             finally:
                 self._logger.info(f'Deleting snapshot "{zfs_snapshot_name}" on "{self._host}"')
 

@@ -94,8 +94,10 @@ class ReplicationRunner(Runner):
             'hard-links',
             'acls',
             'xattrs',
+            # holes of sparse files are kept, like in the backups being replicated
+            'sparse',
         ]
-
+        
         if dest_link:
             self._logger.info(f'Using "{dest_link}" as link-dest for replication')
             options.append(('link-dest', dest_link.path))
