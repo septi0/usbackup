@@ -9,7 +9,7 @@ class JobModel(BaseModel):
     dest: str
     limit: list[str] = []
     exclude: list[str] = []
-    schedule: str = Field('0 0 * * *', pattern=r'^(\*|(\d+|\*\/\d+|\d+-\d+|\d+(,\d+)*))(\s+(\*|(\d+|\*\/\d+|\d+-\d+|\d+(,\d+)*))){4}$')
+    schedule: str = Field('0 0 * * *', pattern=r'^(manual|(\*|(\d+|\*\/\d+|\d+-\d+|\d+(,\d+)*))(\s+(\*|(\d+|\*\/\d+|\d+-\d+|\d+(,\d+)*))){4})$')
     retention_policy: RetentionPolicyModel | None = None
     sources_retention_policy: dict[str, RetentionPolicyModel] = {}
     notification_policy: Literal['never', 'always', 'on-failure'] = 'always'
@@ -35,6 +35,9 @@ class JobModel(BaseModel):
     @field_validator('schedule', mode='after')
     @classmethod
     def validate_schedule(cls, schedule):
+        if schedule == 'manual':
+            return schedule
+
         # weekdays accept 7 as sunday, like cron
         limits = [('minute', 0, 59), ('hour', 0, 23), ('day', 1, 31), ('month', 1, 12), ('weekday', 0, 7)]
         

@@ -168,6 +168,8 @@ Run it only for some of its sources (e.g. after a failed night):
 usbackup run --job job1 --limit host1
 ```
 
+> **Note:** A job with `schedule: manual` is never run by the service, only with `usbackup run --job <name>` (e.g. a replication to a removable disk).
+
 ---
 
 #### Prune the versions of a configured job

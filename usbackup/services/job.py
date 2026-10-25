@@ -227,6 +227,10 @@ class JobService:
         
         self._logger.debug(f"Checking if job {self._name} is due with schedule {cron_schedule}")
         
+        # manual jobs only run from the command line (run --job)
+        if cron_schedule == 'manual':
+            return False
+        
         if not cron_schedule:
             self._logger.debug(f"Job {self._name} has no cron schedule, running job")
             return True

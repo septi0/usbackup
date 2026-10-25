@@ -59,7 +59,7 @@ jobs:
 
     replication_mode: incremental # Replication mode. Available options: incremental, full, archive. Default: incremental
 
-    schedule: 0 0 * * * # Cron schedule to be used when running the job. Supports values, lists (1,15), ranges (1-5) and steps (*/2), weekdays are 0-7 with 0 and 7 being Sunday. Default: 0 0 * * *
+    schedule: 0 0 * * * # Cron schedule to be used when running the job. Supports values, lists (1,15), ranges (1-5) and steps (*/2), weekdays are 0-7 with 0 and 7 being Sunday. Use 'manual' for a job that only runs with 'usbackup run --job <name>'. Default: 0 0 * * *
 
     limit: [host1] # List of sources for the job - optional (if no sources are provided, all sources will be included, except the ones in the exclude list)
 
