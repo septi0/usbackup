@@ -46,8 +46,18 @@ class UsBackupModel(BaseModel):
         if len(job_names) != len(set(job_names)):
             raise ValueError('Job names must be unique')
             
-        # ensure that jobs[].sources_retention_policy references existing sources
+        # ensure that jobs reference existing storages and sources, so typos are reported by configtest
         for job in values.jobs:
+            if job.dest not in storage_names:
+                raise ValueError(f'Job "{job.name}" references inexistent destination storage "{job.dest}"')
+
+            if job.type == 'replication' and job.replicate not in storage_names:
+                raise ValueError(f'Job "{job.name}" references inexistent replication storage "{job.replicate}"')
+
+            unknown_sources = [name for name in [*job.limit, *job.exclude] if name not in host_names]
+            if unknown_sources:
+                raise ValueError(f'Job "{job.name}" limit/exclude references inexistent sources: {", ".join(unknown_sources)}')
+
             unknown_sources = [name for name in job.sources_retention_policy if name not in host_names]
             if unknown_sources:
                 raise ValueError(f'Job "{job.name}" sources retention policy references inexistent sources: {", ".join(unknown_sources)}')

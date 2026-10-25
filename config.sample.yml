@@ -63,7 +63,7 @@ jobs:
 
     limit: [host1] # List of sources for the job - optional (if no sources are provided, all sources will be included, except the ones in the exclude list)
 
-    exclude: [host2] # List of sources to exclude from the job - optional
+    exclude: [] # List of sources to exclude from the job, e.g. [host2] - optional (sources in limit and exclude must exist)
 
     retention_policy: # Pruning policy to be applied to versions - optional (if no policy is provided, all versions will be kept indefinitely). If provided, at least one of the options below must be set
       last: 3 # Number of last versions to keep (this ensures that the last N versions are kept, regardless of the other policies)

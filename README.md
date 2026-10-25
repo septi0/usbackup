@@ -22,6 +22,7 @@ Version 1.x is still available in the `legacy` branch.
 - An empty retention policy (`retention_policy: {}`) is a configuration error instead of pruning all versions except the latest one.
 - Replication only copies the latest successfully completed version of each source (the one the `latest` symlink points to). Storages created by versions without the `latest` symlink need one successful backup before they can be replicated.
 - Remote storages are only allowed as replication destinations, which `configtest` enforces.
+- Jobs must reference existing storages (`dest`, `replicate`) and sources (`limit`, `exclude`), otherwise `configtest` reports the typo instead of the job failing or silently skipping it.
 - New runtime files: `data.db.lock` and a `cleanup` directory next to the datastore (whose directory is now private), and SSH control sockets in `/run/usbackup/ssh` (for root).
 
 ## Features
