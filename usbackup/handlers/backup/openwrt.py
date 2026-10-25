@@ -19,12 +19,14 @@ class OpenwrtHandler(BackupHandler):
 
         archive_path = PathModel(path='/tmp/archive.tar.gz', host=self._host)
 
-        self._cleanup.push(f'remove_backup_archive_{self._id}', RemoteCmd.exec, ['rm', archive_path.path], self._host)
+        self._cleanup.push(f'remove_backup_archive_{self._id}', 'exec', cmd=['rm', archive_path.path], host=self._host.model_dump())
 
-        self._logger.info(f'Copying "{archive_path}" to "{dest.path}"')
+        # the archive is removed even if copying fails, instead of lingering until the process exits
+        try:
+            self._logger.info(f'Copying "{archive_path}" to "{dest.path}"')
 
-        await RemoteSync.scp(archive_path, dest)
+            await RemoteSync.scp(archive_path, dest)
+        finally:
+            self._logger.info(f'Deleting backup archive on "{self._host}"')
 
-        self._logger.info(f'Deleting backup archive on "{self._host}"')
-        
-        await self._cleanup.consume(f'remove_backup_archive_{self._id}')
+            await self._cleanup.consume(f'remove_backup_archive_{self._id}')

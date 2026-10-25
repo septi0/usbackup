@@ -30,14 +30,16 @@ class HomeassistantHandler(BackupHandler):
         
         slug = result['data']['slug']
         
-        self._cleanup.push(f'remove_backup_archive_{self._id}', RemoteCmd.exec, ['ha', 'backups', 'remove', slug], self._host)
+        self._cleanup.push(f'remove_backup_archive_{self._id}', 'exec', cmd=['ha', 'backups', 'remove', slug], host=self._host.model_dump())
 
         archive_path = PathModel(path=f'/root/backup/{slug}.tar', host=self._host)
 
-        self._logger.info(f'Copying "{archive_path}" to "{dest.path}"')
+        # the archive is removed even if copying fails, instead of lingering until the process exits
+        try:
+            self._logger.info(f'Copying "{archive_path}" to "{dest.path}"')
         
-        await RemoteSync.scp(archive_path, dest.join('archive.tar'))
+            await RemoteSync.scp(archive_path, dest.join('archive.tar'))
+        finally:
+            self._logger.info(f'Deleting backup archive on "{self._host}"')
         
-        self._logger.info(f'Deleting backup archive on "{self._host}"')
-        
-        await self._cleanup.consume(f'remove_backup_archive_{self._id}')
+            await self._cleanup.consume(f'remove_backup_archive_{self._id}')

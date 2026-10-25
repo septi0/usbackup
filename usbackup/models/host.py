@@ -37,7 +37,7 @@ class HostModel(BaseModel):
         parsed_values = {}
         
         parsed_values['host'] = match.group('hostname')
-        parsed_values['local'] = True if (parsed_values['host'] == socket.gethostname() or parsed_values['host'] == 'localhost') else False
+        parsed_values['local'] = parsed_values['host'] in (socket.gethostname(), 'localhost', '127.0.0.1')
         
         if match.group('username'): parsed_values['user'] = match.group('username')
         if match.group('password'): parsed_values['password'] = match.group('password')

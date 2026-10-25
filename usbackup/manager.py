@@ -1,5 +1,6 @@
 import os
 import sys
+import fcntl
 import logging
 import signal
 import yaml
@@ -10,6 +11,7 @@ import re
 from logging.handlers import TimedRotatingFileHandler
 from dotenv import dotenv_values
 from usbackup.libraries.cleanup_queue import CleanupQueue
+from usbackup.libraries.cmd_exec import CmdExec
 from usbackup.libraries.datastore import Datastore
 from usbackup.models.usbackup import UsBackupModel
 from usbackup.models.job import JobModel
@@ -27,20 +29,23 @@ class UsBackupManager:
 
         self._logger: logging.Logger = self._logger_factory(log_file, log_level)
         self._model: UsBackupModel = UsBackupModel(**self._load_config(config_file=config_file, alt_job=alt_job))
-        self._datastore: Datastore = Datastore(self._get_datastore_filepath())
-        self._cleanup: CleanupQueue = CleanupQueue(datastore=self._datastore)
+        datastore_filepath = self._get_datastore_filepath()
 
-    def run_once(self) -> None:
-        """ Run the backup job once, without scheduling."""
-        return self._run_main(self._do_run_once)
+        self._datastore: Datastore = Datastore(datastore_filepath)
+        self._cleanup: CleanupQueue = CleanupQueue(datastore=self._datastore, lock_dir=os.path.join(os.path.dirname(datastore_filepath), 'cleanup'))
     
-    def run_forever(self) -> None:
-        """ Run the backup job forever, scheduling it every minute."""
-        return self._run_main(self._do_run_forever)
+    def run_once(self) -> bool:
+        """ Run the backup job once, without scheduling. Returns True if the job completed successfully."""
+        return self._run_main(self._do_run_once) is True
+    
+    def run_forever(self) -> bool:
+        """ Run the backup job forever, scheduling it every minute. Returns False if the service failed."""
+        return self._run_main(self._do_run_forever) is not False
     
     def stats(self, format: str) -> None:
         """ Get the current stats of the backup service."""
-        return self._run_main(self._get_stats, format=format)
+        # a read only query never runs cleanup jobs, which may need slow or unreachable remote hosts
+        return self._run_main(self._get_stats, format=format, recover=False)
     
     def _load_config(self, *, config_file: str | None = None, alt_job: dict | None = None) -> dict:
         if not config_file:
@@ -70,11 +75,6 @@ class UsBackupManager:
                 raise UsBackupRuntimeError(f"Failed to parse config file: {e}")
             
         if alt_job:
-            # convert retention_policy to dict
-            if alt_job.get('retention_policy'):
-                alt_job['retention_policy'] = alt_job['retention_policy'].split(',')
-                alt_job['retention_policy'] = {k.strip(): int(v) for k, v in (x.split('=') for x in alt_job['retention_policy'])}
-                
             config['jobs'] = [alt_job]
         
         if config_secrets_file:
@@ -109,6 +109,16 @@ class UsBackupManager:
         else:
             return os.path.expanduser('~/.usbackup.pid')
         
+    def _get_ssh_control_dir(self) -> str:
+        # a runtime directory keeps control socket paths short and is cleared on reboot
+        if os.getuid() == 0:
+            return '/run/usbackup/ssh'
+        
+        if os.environ.get('XDG_RUNTIME_DIR'):
+            return os.path.join(os.environ['XDG_RUNTIME_DIR'], 'usbackup', 'ssh')
+        
+        return os.path.expanduser('~/.usbackup/ssh')
+    
     def _is_venv(self) -> bool:
         return sys.prefix != getattr(sys, 'base_prefix', sys.prefix)
         
@@ -122,8 +132,11 @@ class UsBackupManager:
 
         directory = os.path.dirname(filepath)
         
-        if not os.path.exists(directory):
-            os.makedirs(directory)
+        # the datastore holds cleanup entries with host credentials, so only its owner may read it
+        os.makedirs(directory, mode=0o700, exist_ok=True)
+        
+        if os.stat(directory).st_uid == os.getuid():
+            os.chmod(directory, 0o700)
             
         return filepath
     
@@ -199,7 +212,7 @@ class UsBackupManager:
     def _sigterm_handler(self) -> None:
         raise GracefulExit
     
-    def _run_main(self, main_task, *args, **kwargs) -> Any:
+    def _run_main(self, main_task, *args, recover: bool = True, **kwargs) -> Any:
         output = None
 
         loop = asyncio.new_event_loop()
@@ -209,14 +222,19 @@ class UsBackupManager:
         loop.add_signal_handler(signal.SIGINT, self._sigterm_handler)
         loop.add_signal_handler(signal.SIGQUIT, self._sigterm_handler)
         
-        if self._cleanup.has_items():
-            self._logger.warning("Cleanup queue has items. Possible crash detected. Running cleanup jobs")
+        if not CmdExec.enable_ssh_reuse(self._get_ssh_control_dir()):
+            self._logger.warning(f'SSH connection reuse disabled: "{self._get_ssh_control_dir()}" is not a private directory with a short enough path')
             
-            try:
-                loop.run_until_complete(self._cleanup.consume_all())
-            except Exception as e:
-                self._logger.exception(f'Failed to recover from crash: {e}')
-                self._cleanup.clear()
+        # only entries of processes that are no longer alive are recovered
+        try:
+            if recover:
+                if self._cleanup.has_orphans():
+                    self._logger.warning("Cleanup queue has items. Possible crash detected. Running cleanup jobs")
+                
+                # also removes empty queues left by dead processes
+                loop.run_until_complete(self._cleanup.consume_orphans())
+        except Exception as e:
+            self._logger.exception(f'Failed to recover from crash: {e}')
 
         try:
             output = loop.run_until_complete(main_task(*args, **kwargs))
@@ -224,15 +242,25 @@ class UsBackupManager:
             self._logger.info("Received termination signal")
         except (Exception) as e:
             self._logger.exception(e)
+            output = False
         finally:
             try:
+                # stop running tasks first so cleanup jobs do not race with them
+                self._cancel_tasks(loop)
+                
                 # run cleanup jobs before exiting
                 self._logger.info("Running cleanup jobs")
-                loop.run_until_complete(self._cleanup.consume_all())
                 
-                self._cancel_tasks(loop)
+                # failed cleanup jobs stay queued and are retried by the next start
+                try:
+                    loop.run_until_complete(self._cleanup.consume_all())
+                except Exception as e:
+                    self._logger.exception(f'Failed to run cleanup jobs: {e}')
+                
+                loop.run_until_complete(CmdExec.close_ssh_connections())
                 loop.run_until_complete(loop.shutdown_asyncgens())
             finally:
+                self._cleanup.close()
                 asyncio.set_event_loop(None)
                 loop.close()
 
@@ -243,6 +271,8 @@ class UsBackupManager:
 
         if not tasks:
             return
+        
+        self._logger.info(f"Cancelling {len(tasks)} running task(s)")
 
         for task in tasks:
             task.cancel()
@@ -260,23 +290,19 @@ class UsBackupManager:
                     'task': task,
                 })
                 
-    async def _do_run_once(self) -> None:
+    async def _do_run_once(self) -> bool:
         self._datastore.set('last_manual_run', datetime.datetime.now())
         
         job = self._job_factory(self._model.jobs[0])
         
-        await job.run()
+        return await job.run()
         
-        return
-
-    async def _do_run_forever(self) -> None:
-        self._datastore.set('running', True)
-        
+    async def _do_run_forever(self) -> bool:
         job_models = self._model.jobs
         
         if not job_models:
             self._logger.error("No jobs found in config")
-            return
+            return False
         
         jobs = []
         
@@ -284,40 +310,82 @@ class UsBackupManager:
             jobs.append(self._job_factory(job_model))
         
         # run as service
-        pid = str(os.getpid())
+        pid_file = self._acquire_pid_file()
 
-        if os.path.isfile(self._pid_filepath):
+        if pid_file is None:
             self._logger.error("Service is already running")
-            return
+            return False
 
-        with open(self._pid_filepath, 'w') as f:
-            f.write(pid)
+        try:
+            self._logger.info(f'Starting service with pid {os.getpid()}')
 
-        self._cleanup.push(f'remove_service_pid_{pid}', self._remove_pid_file)
-        self._cleanup.push(f'set_running_state_{pid}', self._datastore.set, 'running', False)
+            service_run_time = datetime.datetime.now().replace(second=0, microsecond=0)
 
-        self._logger.info(f'Starting service with pid {pid}')
+            # run every minute
+            while True:
+                asyncio.create_task(self._run_due_jobs(jobs))
 
-        service_run_time = datetime.datetime.now().replace(second=0, microsecond=0)
+                # calculate the next scheduled run_time for the service
+                service_run_time += datetime.timedelta(minutes=1)
 
-        # run every minute
-        while True:
-            asyncio.create_task(self._run_due_jobs(jobs))
+                # calculate the time left until the next run_time
+                time_left = (service_run_time - datetime.datetime.now()).total_seconds()
 
-            # calculate the next scheduled run_time for the service
-            service_run_time += datetime.timedelta(minutes=1)
+                # after a suspend, a clock change or a stall the schedule is realigned to the next minute, like cron skipping missed runs
+                if time_left < 0 or time_left > 60:
+                    self._logger.warning(f'Service is out of sync with the clock by {abs(int(time_left))} s. Missed minutes are skipped')
 
-            # calculate the time left until the next run_time
-            time_left = (service_run_time - datetime.datetime.now()).total_seconds()
+                    service_run_time = datetime.datetime.now().replace(second=0, microsecond=0) + datetime.timedelta(minutes=1)
+                    time_left = (service_run_time - datetime.datetime.now()).total_seconds()
 
-            # we are behind schedule if time_left is negative
-            if time_left < 0:
-                self._logger.fatal(f'Behind schedule by {abs(int(time_left / 60)) + 1} m')
-                break
+                self._logger.debug(f'Next run in {time_left} s')
 
-            self._logger.debug(f'Next run in {time_left} s')
+                await asyncio.sleep(time_left)
+        finally:
+            self._release_pid_file(pid_file)
 
-            await asyncio.sleep(time_left)
+    def _acquire_pid_file(self) -> int | None:
+        """
+        Lock and write the pid file, held for the whole service lifetime. Returns None if another service holds it.
+        """
+        pid_file = os.open(self._pid_filepath, os.O_RDWR | os.O_CREAT, 0o644)
+        
+        # the lock is released by the kernel when the service dies, so a stale pid file never blocks a new service
+        try:
+            fcntl.flock(pid_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(pid_file)
+            return None
+        
+        os.ftruncate(pid_file, 0)
+        os.write(pid_file, str(os.getpid()).encode('utf-8'))
+        
+        return pid_file
+    
+    def _release_pid_file(self, pid_file: int) -> None:
+        try:
+            os.unlink(self._pid_filepath)
+            self._logger.info(f"Removed pid file {self._pid_filepath}")
+        except OSError as e:
+            self._logger.error(f"Failed to remove pid file {self._pid_filepath}: {e}")
+        
+        os.close(pid_file)
+    
+    def _is_service_running(self) -> bool:
+        try:
+            pid_file = os.open(self._pid_filepath, os.O_RDONLY)
+        except FileNotFoundError:
+            return False
+        
+        # the running service holds an exclusive lock on its pid file
+        try:
+            fcntl.flock(pid_file, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        finally:
+            os.close(pid_file)
+        
+        return False
             
     async def _get_stats(self, format: str) -> str:
         backups = {}
@@ -331,7 +399,7 @@ class UsBackupManager:
             }
         
         stats = {
-            'service_running': self._datastore.get('running', False),
+            'service_running': self._is_service_running(),
             'last_manual_run': str(self._datastore.get('last_manual_run', '')),
             'last_scheduled_run': str(self._datastore.get('last_scheduled_run', '')),
             'backups': backups,
@@ -343,9 +411,15 @@ class UsBackupManager:
         tasks = []
             
         for job in jobs:
-            if job.is_job_due():
-                self._logger.info(f"Job {job.name} is due. Running it")
-                tasks.append(asyncio.create_task(job.run(), name=job.name))
+            if not job.is_job_due():
+                continue
+            
+            if job.is_running:
+                self._logger.warning(f"Job {job.name} is due but its previous run is still in progress. Skipping it")
+                continue
+            
+            self._logger.info(f"Job {job.name} is due. Running it")
+            tasks.append(asyncio.create_task(job.run(), name=job.name))
         
         if not tasks:
             self._logger.debug('No jobs due')
@@ -363,16 +437,6 @@ class UsBackupManager:
         for task in tasks:
             if isinstance(task.exception(), Exception):
                 self._logger.exception(task.exception())
-                
-    def _remove_pid_file(self) -> None:
-        if not os.path.isfile(self._pid_filepath):
-            return
-        
-        try:
-            os.remove(self._pid_filepath)
-            self._logger.info(f"Removed pid file {self._pid_filepath}")
-        except OSError as e:
-            self._logger.error(f"Failed to remove pid file {self._pid_filepath}: {e}")
                 
     def _format_stats(self, stats: dict, format: str) -> str:
         if format == 'json':

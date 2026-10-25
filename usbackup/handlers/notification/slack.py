@@ -20,8 +20,8 @@ class SlackHandler(NotificationHandler):
         self._slack_get_url = "https://slack.com/api/files.getUploadURLExternal"
         self._slack_complete_url = "https://slack.com/api/files.completeUploadExternal"
 
-    async def notify(self, status: str, results: list[ResultModel], *, elapsed: datetime.timedelta) -> None:
-        details = [res.message for res in results if res.message]
+    async def notify(self, status: str, results: list[ResultModel], *, elapsed: datetime.timedelta, errors: list[str] = []) -> None:
+        details = [f'Job error: {error}' for error in errors] + [res.message for res in results if res.message]
         details = "\n".join(details)
         file = details.encode("utf-8")
         filename = 'report.log'

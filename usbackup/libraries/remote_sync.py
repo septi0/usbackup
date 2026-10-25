@@ -14,7 +14,7 @@ class RemoteSyncError(Exception):
 
 class RemoteSync:
     @classmethod
-    async def rsync(cls, src: PathModel, dst: PathModel, *, options: list = []) -> str:
+    async def rsync(cls, src: PathModel, dst: PathModel, *, options: list = [], reuse_ssh: bool = False) -> str:
         """
         Copy a file or directory from src to dst using rsync.
         """
@@ -45,22 +45,14 @@ class RemoteSync:
             remote = dst.host
 
         if remote:
-            ssh_opts = []
-
-            if remote.password:
-                cmd_prefix += ["sshpass", "-p", str(remote.password)]
-            else:
-                ssh_opts += ["-o", "PasswordAuthentication=No", "-o", "BatchMode=yes"]
-
-            if remote.port:
-                ssh_opts += ["-p", str(remote.port)]
+            cmd_prefix, ssh_opts = CmdExec.gen_ssh_opts(remote, reuse=reuse_ssh)
 
             if ssh_opts:
                 cmd_options += ["--rsh", f'ssh {" ".join(ssh_opts)}']
 
         cmd_options += ["--out-format", "%t %i %f", "--stats"]
 
-        return await CmdExec.exec([*cmd_prefix, "rsync", *cmd_options, src_path, dst_path])
+        return await CmdExec.exec([*cmd_prefix, "rsync", *cmd_options, src_path, dst_path], env=CmdExec.gen_ssh_env(remote) if remote else None)
 
     @classmethod
     async def scp(cls, src: PathModel, dst: PathModel) -> str:
@@ -97,12 +89,14 @@ class RemoteSync:
             remote = dst.host
 
         if remote:
+            cmd_options += CmdExec.ssh_timeout_opts
+            
             if remote.password:
-                cmd_prefix += ["sshpass", "-p", str(remote.password)]
+                cmd_prefix += ["sshpass", "-e"]
             else:
                 cmd_options += ["-o", "PasswordAuthentication=No", "-o", "BatchMode=yes"]
 
             if remote.port:
                 cmd_options += ["-P", str(remote.port)]
 
-        return await CmdExec.exec([*cmd_prefix, "scp", *cmd_options, src_path, dst_path])
+        return await CmdExec.exec([*cmd_prefix, "scp", *cmd_options, src_path, dst_path], env=CmdExec.gen_ssh_env(remote) if remote else None)

@@ -46,4 +46,21 @@ class UsBackupModel(BaseModel):
         if len(job_names) != len(set(job_names)):
             raise ValueError('Job names must be unique')
             
+        # ensure that jobs[].sources_retention_policy references existing sources
+        for job in values.jobs:
+            unknown_sources = [name for name in job.sources_retention_policy if name not in host_names]
+            if unknown_sources:
+                raise ValueError(f'Job "{job.name}" sources retention policy references inexistent sources: {", ".join(unknown_sources)}')
+        
+        # ensure that remote storages are only used as replication destinations
+        storages = {storage.name: storage for storage in values.storages}
+        for job in values.jobs:
+            dest = storages.get(job.dest)
+            if job.type == 'backup' and dest and dest.path.protocol != 'local_fs':
+                raise ValueError(f'Job "{job.name}" backs up to remote storage "{job.dest}". Remote storages can only be used as replication destinations')
+            
+            replicate = storages.get(job.replicate) if job.replicate else None
+            if job.type == 'replication' and replicate and replicate.path.protocol != 'local_fs':
+                raise ValueError(f'Job "{job.name}" replicates from remote storage "{job.replicate}". Replication sources must be local storages')
+        
         return values

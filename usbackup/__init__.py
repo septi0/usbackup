@@ -6,6 +6,35 @@ from usbackup.manager import UsBackupManager
 from usbackup.exceptions import UsBackupRuntimeError
 from usbackup.info import __app_name__, __version__, __description__, __author__, __author_email__, __author_url__, __license__
 
+def parse_retention_policy(value: str) -> dict[str, int]:
+    policy = {}
+    
+    for item in value.split(','):
+        category, separator, number = item.partition('=')
+        category = category.strip()
+        
+        if not separator or not category:
+            raise argparse.ArgumentTypeError(f'invalid retention policy item "{item}". Expected <category>=<NR>')
+        
+        if category in policy:
+            raise argparse.ArgumentTypeError(f'duplicate retention policy category "{category}"')
+        
+        try:
+            policy[category] = int(number)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f'invalid number "{number}" for retention policy category "{category}"')
+    
+    return policy
+
+def parse_source_retention_policy(value: str) -> tuple[str, dict[str, int]]:
+    # split on the last colon since source names may contain colons
+    source, separator, policy = value.rpartition(':')
+    
+    if not separator or not source:
+        raise argparse.ArgumentTypeError(f'invalid source retention policy "{value}". Expected <source>:<category>=<NR>,...')
+    
+    return source, parse_retention_policy(policy)
+
 def main():
     # get args from command line
     parser = argparse.ArgumentParser(description=__description__)
@@ -26,7 +55,8 @@ def main():
     job_parser.add_argument('--replication-mode', dest='replication_mode', choices=['incremental', 'full', 'archive'], help='Replication mode. Available options: incremental, full, archive. Default: incremental')
     job_parser.add_argument('--limit', dest='limit', action='append', help='List of sources for the job (if no sources are provided, all sources will be included, except the ones in the exclude list)')
     job_parser.add_argument('--exclude', dest='exclude', action='append', help='List of sources to exclude from the job')
-    job_parser.add_argument('--retention-policy', dest='retention_policy', help='Retention policy. last=<NR>,hourly=<NR>,daily=<daNRys>,weekly=<NR>,monthly=<NR>,yearly=<NR>. Example: --retention-policy last=6,hourly=24,daily=7,weekly=4,monthly=12,yearly=1')
+    job_parser.add_argument('--retention-policy', dest='retention_policy', type=parse_retention_policy, help='Retention policy. last=<NR>,hourly=<NR>,daily=<NR>,weekly=<NR>,monthly=<NR>,yearly=<NR>. Example: --retention-policy last=6,hourly=24,daily=7,weekly=4,monthly=12,yearly=1')
+    job_parser.add_argument('--source-retention-policy', dest='sources_retention_policy', type=parse_source_retention_policy, action='append', help='Retention policy for a specific source, replacing the job retention policy for that source. Can be used multiple times. <source>:last=<NR>,hourly=<NR>,daily=<NR>,weekly=<NR>,monthly=<NR>,yearly=<NR>. Example: --source-retention-policy host1:daily=30,monthly=12')
     job_parser.add_argument('--notification-policy', dest='notification_policy', type=str, help='Notification policy. Available options: never, always, on-failure.')
     job_parser.add_argument('--concurrency', dest='concurrency', type=int, help='Concurrency. Number of concurrent hosts to backup')
     
@@ -44,6 +74,17 @@ def main():
     alt_job = None
       
     if args.command == 'run':
+        sources_retention_policy = None
+        
+        if args.sources_retention_policy:
+            sources_retention_policy = {}
+            
+            for source, policy in args.sources_retention_policy:
+                if source in sources_retention_policy:
+                    job_parser.error(f'argument --source-retention-policy: duplicate source "{source}"')
+                
+                sources_retention_policy[source] = policy
+        
         alt_job = {
             'name': f'manual-{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}',
             'type': args.type,
@@ -53,6 +94,7 @@ def main():
             'limit': args.limit,
             'exclude': args.exclude,
             'retention_policy': args.retention_policy,
+            'sources_retention_policy': sources_retention_policy,
             'notification_policy': args.notification_policy,
             'concurrency': args.concurrency,
         }
@@ -71,19 +113,31 @@ def main():
         for error in e.errors(include_url=False):
             loc = '.'.join(str(x) for x in error['loc']) if error['loc'] else 'general'
             print(f"  - {loc}: {error['msg']}")
-            exit()
 
         print(f"\nCheck documentation for more information on how to configure UsBackup")
         sys.exit(2)
+    except (UsBackupRuntimeError, OSError) as e:
+        # startup errors like a missing or unreadable config file are reported without a traceback
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(2)
     
     if args.command == 'daemon':
-        usbackup.run_forever()
+        # a failed service exits with a non zero code so the service manager can restart it
+        if not usbackup.run_forever():
+            sys.exit(1)
     elif args.command == 'run':
-        usbackup.run_once()
+        # failed or interrupted runs exit with a non zero code so schedulers and monitoring can detect them
+        if not usbackup.run_once():
+            sys.exit(1)
     elif args.command == 'configtest':
         print("Configuration file is valid")
     elif args.command == 'stats':
         format = 'json' if args.json else 'text'
-        print(usbackup.stats(format=format))
+        stats = usbackup.stats(format=format)
+        
+        if not isinstance(stats, str):
+            sys.exit(1)
+        
+        print(stats)
 
     sys.exit(0)

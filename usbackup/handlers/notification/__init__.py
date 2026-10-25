@@ -19,7 +19,7 @@ class NotificationHandler(ABC):
         self._id: str = str(uuid.uuid4())
 
     @abstractmethod
-    async def notify(self, status: str, results: list[ResultModel], *, elapsed: datetime.timedelta) -> None:
+    async def notify(self, status: str, results: list[ResultModel], *, elapsed: datetime.timedelta, errors: list[str] = []) -> None:
         pass
 
 class NotificationHandlerError(Exception):

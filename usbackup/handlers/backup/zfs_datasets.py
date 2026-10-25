@@ -49,13 +49,15 @@ class ZfsDatasetsHandler(BackupHandler):
             self._logger.info(f'Creating snapshot "{zfs_snapshot_name}" on "{self._host}"')
 
             await CmdExec.exec(['zfs', 'snapshot', zfs_snapshot_name], host=self._host)
-            self._cleanup.push(f'destroy_snapshot_{self._id}', CmdExec.exec, ['zfs', 'destroy', zfs_snapshot_name], host=self._host)
+            self._cleanup.push(f'destroy_snapshot_{self._id}', 'exec', cmd=['zfs', 'destroy', zfs_snapshot_name], host=self._host.model_dump())
 
-            with FsAdapter.open(dest.join(file_name), 'wb') as f:
-                self._logger.info(f'Streaming snapshot "{zfs_snapshot_name}" from "{self._host}" to "{dest.path}"')
+            # the snapshot is destroyed even if streaming fails, instead of lingering until the process exits
+            try:
+                with FsAdapter.open(dest.join(file_name), 'wb') as f:
+                    self._logger.info(f'Streaming snapshot "{zfs_snapshot_name}" from "{self._host}" to "{dest.path}"')
 
-                await CmdExec.exec(['zfs', 'send', zfs_snapshot_name], host=self._host, stdout=f)
+                    await CmdExec.exec(['zfs', 'send', zfs_snapshot_name], host=self._host, stdout=f)
+            finally:
+                self._logger.info(f'Deleting snapshot "{zfs_snapshot_name}" on "{self._host}"')
 
-            self._logger.info(f'Deleting snapshot "{zfs_snapshot_name}" on "{self._host}"')
-
-            await self._cleanup.consume(f'destroy_snapshot_{self._id}')
+                await self._cleanup.consume(f'destroy_snapshot_{self._id}')

@@ -1,3 +1,4 @@
+import html
 import shlex
 import datetime
 from usbackup.libraries.cmd_exec import CmdExec
@@ -20,9 +21,9 @@ class EmailHandler(NotificationHandler):
         self._email_addresses: list[str] = model.to
         self._email_command: list = shlex.split(model.command)
 
-    async def notify(self, status: str, results: list[ResultModel], *, elapsed: datetime.timedelta) -> None:
+    async def notify(self, status: str, results: list[ResultModel], *, elapsed: datetime.timedelta, errors: list[str] = []) -> None:
         to = ", ".join(self._email_addresses)
-        body = self._gen_email_body(status, results, elapsed=elapsed)
+        body = self._gen_email_body(status, results, elapsed=elapsed, errors=errors)
         subject = f'{self._type.capitalize()} job "{self._name}" status: {status}'
 
         message = f'From: {self._from_address}\nTo: {to}\nSubject: {subject}\nMIME-Version: 1.0\nContent-Type: text/html; charset=UTF-8\n\n{body}'
@@ -32,34 +33,40 @@ class EmailHandler(NotificationHandler):
         except Exception as e:
             raise NotificationHandlerError(f'Email exception: {e}', 1011)
         
-    def _gen_email_body(self, status: str, results: list[ResultModel], *, elapsed: datetime.timedelta) -> str:
+    def _gen_email_body(self, status: str, results: list[ResultModel], *, elapsed: datetime.timedelta, errors: list[str] = []) -> str:
         summary_table = ''
         details = ''
+        job_errors = ''
         
+        if errors:
+            job_errors = '<h3>Job errors</h3>' + ''.join(f'<p style="color:red;">{html.escape(error)}</p>' for error in errors)
+        
+        # every value may contain markup characters (paths, error messages, logs), so all of them are escaped
         for result in results:
             if not result.error:
                 status_str = '<strong style="color:green;">OK</strong>'
             else:
-                status_str = f'<strong style="color:red;">Failed</strong> <span>({result.error})</span>'
+                status_str = f'<strong style="color:red;">Failed</strong> <span>({html.escape(str(result.error))})</span>'
             
             summary_table += f'''
                 <tr>
-                    <td>{result.name}</td>
+                    <td>{html.escape(result.name)}</td>
                     <td>{status_str}</td>
-                    <td>{result.elapsed}</td>
-                    <td>{result.dest}</td>
+                    <td>{html.escape(str(result.elapsed))}</td>
+                    <td>{html.escape(str(result.dest))}</td>
                 </tr>
             '''
             
             details += f'''
-                <h4>{result.name}</h4>
-                <pre>{result.message}</pre>
+                <h4>{html.escape(result.name)}</h4>
+                <pre>{html.escape(result.message or '')}</pre>
             '''
         
         content = f'''
         <html>
             <body>
-                <p>{self._type.capitalize()} job "{self._name}" finished with status "{status}". Total elapsed time: {elapsed}</p>
+                <p>{html.escape(self._type.capitalize())} job "{html.escape(self._name)}" finished with status "{html.escape(status)}". Total elapsed time: {html.escape(str(elapsed))}</p>
+                {job_errors}
                 <h3>Summary</h3>
                 <table border="1" cellpadding="5" cellspacing="0">
                     <thead>

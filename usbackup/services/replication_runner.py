@@ -22,40 +22,53 @@ class ReplicationRunner(Runner):
     async def run(self, replicate_context: ContextService) -> ResultModel:
         run_time = datetime.datetime.now()
         
-        if await self._context.lock_file_exists():
-            raise UsBackupRuntimeError(f'Replication already running')
-        
-        replicate_version = await replicate_context.get_latest_version()
+        # only a completed version is replicated, never one that is still being written or has failed
+        replicate_version = await replicate_context.get_completed_version()
         
         if not replicate_version:
-            raise UsBackupRuntimeError(f'No backup version found to replicate')
+            raise UsBackupRuntimeError(f'No completed backup version found to replicate (a "latest" symlink is created by the first successful backup)')
+        
+        await self._context.ensure_destination()
+        
+        if not await self._acquire_lock():
+            raise UsBackupRuntimeError(f'Replication already running')
         
         self._logger.info(f'Replication started at {run_time} (mode: {self._mode})')
         
-        await self._context.ensure_destination()
-            
-        await self._context.create_lock_file()
-        self._cleanup.push(f'remove_lock_{self._id}', self._context.remove_lock_file)
-
         src = replicate_version.path
-        latest_version = await self._context.get_latest_version()
-        version = await self._context.generate_version()
+            
+        try:
+            await self._context.purge_removed_versions()
+            latest_version = await self._context.get_latest_version()
+            version = await self._context.generate_version()
+        except Exception:
+            await self._release_lock()
+            raise
+
         dest = version.path
         dest_link = latest_version.path if latest_version and self._mode == 'incremental' else None
         error = None
 
-        self._cleanup.push(f'remove_inconsistent_version_{self._id}', self._remove_inconsistent_version, version)
+        self._track_inconsistent_version(version)
 
         try:
             if self._mode == 'archive':
                 await self._run_replication_archive(src, dest)
             else:
                 await self._run_replication(src, dest, dest_link)
-            self._cleanup.pop(f'remove_inconsistent_version_{self._id}')
+            self._untrack_inconsistent_version()
         except Exception as e:
             self._logger.exception(e)
-            await self._cleanup.consume(f'remove_inconsistent_version_{self._id}')
+            await self._remove_inconsistent_version(version)
             error = e
+        
+        # the version is marked complete before pruning, so a pruning failure never hides it from later replications
+        if not error:
+            try:
+                await self._context.update_latest_symlink()
+            except Exception as e:
+                self._logger.exception(f'Failed to update latest symlink. {e}')
+                error = e
         
         if not error:
             try:
@@ -64,13 +77,7 @@ class ReplicationRunner(Runner):
                 self._logger.exception(f'Failed to apply retention policy. {e}')
                 error = e
 
-        if not error:
-            try:
-                await self._context.update_latest_symlink()
-            except Exception as e:
-                self._logger.exception(f'Failed to update latest symlink. {e}')
-
-        await self._cleanup.consume(f'remove_lock_{self._id}')
+        await self._release_lock()
 
         finish_time = datetime.datetime.now()
 
@@ -99,7 +106,7 @@ class ReplicationRunner(Runner):
 
         self._logger.info(f'Replicating "{source}" to "{dest}"')
         
-        stats = await RemoteSync.rsync(source_trailing, dest, options=options)
+        stats = await RemoteSync.rsync(source_trailing, dest, options=options, reuse_ssh=True)
         self._logger.debug(stats)
 
     async def _run_replication_archive(self, source: PathModel, dest: PathModel) -> None:
@@ -107,8 +114,10 @@ class ReplicationRunner(Runner):
 
         self._logger.info(f'Archiving "{source}" to "{archive_path}"')
 
+        # the path is passed as an argument so it is never interpreted by the shell
         await CmdExec.pipe(
             ['tar', 'czf', '-', '-C', source.path, '.'],
-            ['bash', '-c', f'cat > {archive_path.path}'],
+            ['sh', '-c', 'cat > "$1"', 'sh', archive_path.path],
             dst_host=dest.host,
+            reuse_ssh=True,
         )

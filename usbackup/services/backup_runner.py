@@ -19,40 +19,48 @@ class BackupRunner(Runner):
         super().__init__(context, retention_policy, cleanup=cleanup, logger=logger)
         
     async def run(self) -> ResultModel:
-        if await self._context.lock_file_exists():
-            raise UsBackupRuntimeError(f'Backup already running')
-        
         # test connection to host
         if not await CmdExec.is_host_reachable(self._context.host):
             raise UsBackupRuntimeError(f'Host "{self._context.host}" is not reachable')
+        
+        await self._context.ensure_destination()
+        
+        if not await self._acquire_lock():
+            raise UsBackupRuntimeError(f'Backup already running')
 
         run_time = datetime.datetime.now()
         
         self._logger.info(f'Backup started at {run_time}')
         
-        await self._context.ensure_destination()
-        
-        latest_version = await self._context.get_latest_version()
-        version = await self._context.generate_version()
-            
-        await self._context.create_lock_file()
-        self._cleanup.push(f'remove_lock_{self._id}', self._context.remove_lock_file)
+        try:
+            await self._context.purge_removed_versions()
+            latest_version = await self._context.get_latest_version()
+            version = await self._context.generate_version()
+        except Exception:
+            await self._release_lock()
+            raise
         
         dest = version.path
         dest_link = latest_version.path if latest_version else None
         error = None
 
-        # Add cleanup task for removing inconsistent version in case something goes wrong
-        self._cleanup.push(f'remove_inconsistent_version_{self._id}', self._remove_inconsistent_version, version)
+        self._track_inconsistent_version(version)
 
         try:
             await self._run_backup_handlers(dest, dest_link)
-            # remove cleanup task for removing inconsistent version
-            self._cleanup.pop(f'remove_inconsistent_version_{self._id}')
+            self._untrack_inconsistent_version()
         except Exception as e:
             self._logger.exception(e)
-            await self._cleanup.consume(f'remove_inconsistent_version_{self._id}')
+            await self._remove_inconsistent_version(version)
             error = e
+        
+        # the version is marked complete before pruning, so a pruning failure never hides it from replication
+        if not error:
+            try:
+                await self._context.update_latest_symlink()
+            except Exception as e:
+                self._logger.exception(f'Failed to update latest symlink. {e}')
+                error = e
         
         if not error:
             try:
@@ -61,13 +69,7 @@ class BackupRunner(Runner):
                 self._logger.exception(f'Failed to apply retention policy. {e}')
                 error = e
 
-        if not error:
-            try:
-                await self._context.update_latest_symlink()
-            except Exception as e:
-                self._logger.exception(f'Failed to update latest symlink. {e}')
-
-        await self._cleanup.consume(f'remove_lock_{self._id}')
+        await self._release_lock()
 
         finish_time = datetime.datetime.now()
  

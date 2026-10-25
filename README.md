@@ -15,6 +15,15 @@ The recommended way to configure hosts is to use ssh keys. Passwords are support
 **WARNING!** If using UsBackup prior to version 2.0, please note that the configuration file format and backup directories structure have changed and they are not compatible with versions 1.x and 0.x. Please check the `config.sample.yml` file for the new format and migrate your configuration file accordingly.
 Version 1.x is still available in the `legacy` branch.
 
+**Upgrading to 2.7.** Stop the running service before upgrading and start it again afterwards. Behavior changes to check:
+
+- Cron schedules follow standard cron semantics: weekdays count from Sunday (`0` or `7`), so schedules using the weekday field now run one day earlier than before (on the intended day). Lists (`0,30`) are supported, steps on days and months start at 1, and a job restricted by both day of month and day of week runs when either matches. Invalid values (e.g. minute `75` or step `*/0`) are rejected by `configtest`.
+- `usbackup run` and `usbackup daemon` exit with a non zero code on failure (see "Command line arguments").
+- An empty retention policy (`retention_policy: {}`) is a configuration error instead of pruning all versions except the latest one.
+- Replication only copies the latest successfully completed version of each source (the one the `latest` symlink points to). Storages created by versions without the `latest` symlink need one successful backup before they can be replicated.
+- Remote storages are only allowed as replication destinations, which `configtest` enforces.
+- New runtime files: `data.db.lock` and a `cleanup` directory next to the datastore (whose directory is now private), and SSH control sockets in `/run/usbackup/ssh` (for root).
+
 ## Features
 
 - Backup files (incremental, full, archive)
@@ -53,7 +62,7 @@ or
 ```
 git clone <git-repo>
 cd <git-repo>
-python setup.py install
+pip install .
 ```
 
 #### 2. As a standalone script
@@ -89,19 +98,18 @@ Check "Command line arguments" section for more information about the available 
 ## Command line arguments
 
 ```
-usbackup [-h] [--config CONFIG_FILES] [--log LOG_FILE] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--version] {configtest,du,backup} ...
+usbackup [-h] [--config CONFIG_FILE] [--log LOG_FILE] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--version] {daemon,run,configtest,stats} ...
 
 options:
   -h, --help            show this help message and exit
-  --config CONFIG_FILES
-                        Alternative config file(s)
+  --config CONFIG_FILE  Alternative config file
   --log LOG_FILE        Log file where to write logs
   --log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
                         Log level
-  --version             shows UsBackup version
+  --version             show program's version number and exit
 
 Commands:
-  {configtest,du,backup}
+  {daemon,run,configtest,stats}
     daemon              Run as daemon and perform actions based on configured jobs
     
     run                 Run a job based on the provided paramaters
@@ -116,18 +124,22 @@ Commands:
         --limit LIMIT         List of sources for the job (if no sources are provided, all sources will be included, except the ones in the exclude list)
         --exclude EXCLUDE     List of sources to exclude from the job
         --retention-policy RETENTION_POLICY
-                              Retention policy. last=<NR>,hourly=<NR>,daily=<daNRys>,weekly=<NR>,monthly=<NR>,yearly=<NR>. Example: --retention-policy last=6,hourly=24,daily=7,weekly=4,monthly=12,yearly=1
+                              Retention policy. last=<NR>,hourly=<NR>,daily=<NR>,weekly=<NR>,monthly=<NR>,yearly=<NR>. Example: --retention-policy last=6,hourly=24,daily=7,weekly=4,monthly=12,yearly=1
+        --source-retention-policy SOURCES_RETENTION_POLICY
+                              Retention policy for a specific source, replacing the job retention policy for that source. Can be used multiple times. <source>:last=<NR>,hourly=<NR>,daily=<NR>,weekly=<NR>,monthly=<NR>,yearly=<NR>. Example: --source-retention-policy host1:daily=30,monthly=12
         --notification-policy NOTIFICATION_POLICY
                               Notification policy. Available options: never, always, on-failure. Default: always
         --concurrency CONCURRENCY
                               Concurrency. Number of concurrent hosts to backup. Default: 1
 
-    configtest         Test configuration file
+    configtest          Test the configuration file
 
-    stats              Show some stats
+    stats               Show some stats
       options:
-        --json      Output the stats in JSON format
+        --json          Output the stats in JSON format
 ```
+
+Exit codes: `0` on success, `1` if a run or the service failed (including any failed source or an interrupted run), `2` for invalid arguments, an invalid configuration or other startup errors.
 
 ## Examples
 
@@ -165,6 +177,16 @@ usbackup run --dest storage1 --retention-policy last=5,daily=7,weekly=4
 
 ---
 
+Backup with a custom retention policy for all sources, except `host1` and `host2` which use their own policies:
+
+```
+usbackup run --dest storage1 --retention-policy last=5,daily=7 --source-retention-policy host1:daily=30,monthly=12,yearly=2 --source-retention-policy host2:last=3
+```
+
+> **Note:** A source retention policy fully replaces the job retention policy for that source (the policies are not merged). It can also be used without a job retention policy, in which case only the given sources are pruned.
+
+---
+
 #### Run a manual replication job
 
 Replicate the latest backup from `storage1` to `storage2` using incremental mode (default):
@@ -189,8 +211,9 @@ Replicate only specific sources with a retention policy:
 usbackup run --type replication --replicate storage1 --dest storage2 --limit host1 --retention-policy last=3,daily=7
 ```
 
-> **Note:** The destination storage for replication jobs can be a remote host over SSH, just like any other storage. Configure it with a host in the `storages` section of the config file.
+> **Note:** The destination storage for replication jobs can be a remote Linux host over SSH. Configure it with a host in the `storages` section of the config file (e.g. `path: ssh://user@backup-host:22/path/to/storage`). The remote host needs `rsync` (incremental and full modes), `sh` and the standard coreutils, and key based SSH authentication is recommended. Remote storages can only be used as replication destinations: backup jobs and replication sources must use local storages. Only the latest successfully completed version of each source is replicated.
 
+> **Note:** SSH connections to remote storages are reused while a source is being replicated, through control sockets kept in a private runtime directory (`/run/usbackup/ssh` for root). If that directory cannot be made private, connections are not reused and a warning is logged.
 ## Configuration file
 
 For a sample configuration file see `config.sample.yml` file. Aditionally, you can copy the file to `/etc/usbackup/config.yml`, `/etc/opt/usbackup/config.yml` or `~/.config/usbackup/config.yml` (or where you want as long as you provide the `--config` parameter) and adjust the values to your needs.
@@ -203,7 +226,7 @@ The main sections of the configuration file are:
 
 - `sources` Sources are the representation of each host that needs to be backed up and contains the instructions of what to back up on that host.
 - `storages` Storages are the representation of the different backup destinations.
-- `jobs` Jobs are the glue that binds sources and storages together and defines when to run the backup and how many backups to keep.
+- `jobs` Jobs are the glue that binds sources and storages together and defines when to run the backup and how many backups to keep. The `retention_policy` applies to all sources of the job, while `sources_retention_policy` can replace it for specific sources.
 - `notifiers` Notifiers are the different methods of sending notifications after the backup is finished.
 
 Valid format for hosts:

@@ -19,6 +19,8 @@ class ContextService:
         self._handlers: list[HandlerBaseModel] = source.handlers
         self._destination: PathModel = storage.path.join(source.name)
         self._version_format: str = '%Y_%m_%d-%H_%M_%S'
+        # versions are renamed with this prefix before removal, so an interrupted removal never looks like a version
+        self._removed_version_prefix: str = 'deleting-'
         self._versions: list[BackupVersionModel] = []
         self._cache_generated: bool = False
     
@@ -42,6 +44,14 @@ class ContextService:
         await self._ensure_versions_cache()
         
         return self._versions
+    
+    async def get_completed_version(self) -> BackupVersionModel | None:
+        await self._ensure_versions_cache()
+        
+        # the latest symlink only moves after a successful run, so it never points to a running or failed version
+        target = await FsAdapter.readlink(self._destination.join('latest'))
+        
+        return next((version for version in self._versions if version.version == target), None)
     
     async def get_latest_version(self) -> BackupVersionModel | None:
         await self._ensure_versions_cache()
@@ -78,24 +88,36 @@ class ContextService:
         
         self._versions.remove(version)
         
-        await FsAdapter.rm(version.path)
+        # rename first so an interrupted removal never leaves a partial version behind
+        await FsAdapter.remove_atomically(version.path, self.get_removed_version_path(version))
         
         self._logger.info(f'Removed version path "{version.path}"')
         
-    async def lock_file_exists(self) -> bool:
-        lock_file = self._destination.join('backup.lock')
+    def get_removed_version_path(self, version: BackupVersionModel) -> PathModel:
+        return self._destination.join(f'{self._removed_version_prefix}{version.version}')
 
-        return await FsAdapter.exists(lock_file, 'f')
+    async def purge_removed_versions(self) -> None:
+        for entry in await FsAdapter.ls(self._destination):
+            if not entry.startswith(self._removed_version_prefix):
+                continue
 
-    async def create_lock_file(self) -> None:
-        lock_file = self._destination.join('backup.lock')
+            self._logger.warning(f'Purging interrupted version removal "{entry}"')
+            await FsAdapter.rm(self._destination.join(entry))
 
-        await FsAdapter.touch(lock_file)
+    @property
+    def lock_path(self) -> PathModel:
+        return self._destination.join('backup.lock')
 
-    async def remove_lock_file(self) -> None:
-        lock_file = self._destination.join('backup.lock')
+    async def acquire_lock(self, holder: str) -> bool:
+        # exclusive creation makes checking and creating the lock a single atomic operation
+        return await FsAdapter.create_exclusive(self.lock_path, holder)
 
-        await FsAdapter.rm(lock_file)
+    async def get_lock_holder(self) -> str | None:
+        return await FsAdapter.read_text(self.lock_path)
+    
+    async def remove_lock_file(self, holder: str) -> None:
+        # only the given holder's lock is removed, never one taken over by another process meanwhile
+        await FsAdapter.remove_if_content(self.lock_path, holder)
         
     async def update_latest_symlink(self) -> None:
         latest_version = await self.get_latest_version()

@@ -1,7 +1,7 @@
 sources:
   - name: host1 # The name of the host to be backed up
 
-    host: user:password@host1:port # Hostname of the remote host (use 'localhost' for local backups). Note: Providing the password is supported but HIGHLY discouraged. Use SSH keys instead.
+    host: user:password@host1:22 # Hostname of the remote host in the <user>:<password>@<host>:<port> format, all fields except host being optional (use 'localhost' for local backups). Note: Providing the password is supported but HIGHLY discouraged. Use SSH keys instead.
 
     handlers:
     - handler: files # enable Files backup
@@ -22,9 +22,9 @@ sources:
 
     - handler: proxmox_vms # enable Proxmox VMs backup
       mode: snapshot # available modes: snapshot, suspend, stop. Default: snapshot
-      compress: zstd # available modes: gzip, lz4, zstd. Default: zstd
-      limit: [vm1, vm2] # list of VMs to backup - optional (if no VMs are provided, all VMs will be included, except the ones in the exclude list)
-      exclude: [vm3] # list of VMs to exclude from the backup - optional
+      compress: zstd # available modes: zstd, gzip, lzo, none. Default: zstd
+      limit: [100, 101] # list of VM IDs to backup - optional (if no VM IDs are provided, all VMs will be included, except the ones in the exclude list)
+      exclude: [102] # list of VM IDs to exclude from the backup - optional
       bwlimit: # limit the bandwidth - optional
 
     - handler: unifi # enable Unifi controller backup
@@ -44,8 +44,12 @@ storages:
 
     path: /path/to/storage1 # Path to the storage to be used
 
+  - name: storage2 # A remote storage, reachable over SSH. Remote storages can only be used as replication destinations
+
+    path: ssh://user@backup-host:22/path/to/storage2 # Remote path in the ssh://<user>@<host>:<port>/<path> format. The remote host must be a Linux host with rsync installed
+
 jobs:
-  - name: job1 # The name of the ckup job
+  - name: job1 # The name of the backup job
 
     type: backup # The type of the job. Available types: backup, replication. Default: backup
 
@@ -55,19 +59,25 @@ jobs:
 
     replication_mode: incremental # Replication mode. Available options: incremental, full, archive. Default: incremental
 
-    schedule: 0 0 * * * # Cron schedule to be used when running the job. Default: 0 0 * * *
+    schedule: 0 0 * * * # Cron schedule to be used when running the job. Supports values, lists (1,15), ranges (1-5) and steps (*/2), weekdays are 0-7 with 0 and 7 being Sunday. Default: 0 0 * * *
 
     limit: [host1] # List of sources for the job - optional (if no sources are provided, all sources will be included, except the ones in the exclude list)
 
     exclude: [host2] # List of sources to exclude from the job - optional
 
-    retention_policy: # Pruning policy to be applied to versions - optional (if no policy is provided, all versions will be kept indefinitely)
+    retention_policy: # Pruning policy to be applied to versions - optional (if no policy is provided, all versions will be kept indefinitely). If provided, at least one of the options below must be set
       last: 3 # Number of last versions to keep (this ensures that the last N versions are kept, regardless of the other policies)
       hourly: 24 # Number of hourly versions to keep
       daily: 7 # Number of daily versions to keep
       weekly: 4 # Number of weekly versions to keep
       monthly: 12 # Number of monthly versions to keep
       yearly: 1 # Number of yearly versions to keep
+
+    sources_retention_policy: # Per source pruning policies, keyed by source name - optional. A source policy fully replaces the job "retention_policy" for that source (same options, at least one must be set). Sources must be part of the job
+      host1: # The name of the source
+        daily: 30 # Number of daily versions to keep
+        monthly: 12 # Number of monthly versions to keep
+        yearly: 2 # Number of yearly versions to keep
 
     notification_policy: always # The notification policy. Available policies: always, on-failure, never. Default: always
 
@@ -80,8 +90,8 @@ jobs:
 notifiers:
   - handler: email # enable email report
     sender: from@example.com # Email from address to be used in the email report
-    to: [email@emample.com] # Email addresses to be used when sending the email report
+    to: [email@example.com] # Email addresses to be used when sending the email report
     command: sendmail -t # Custom email command. Optional
   - handler: slack # enable slack report
-    token: # Slack token to be used when sending the slack report
+    token: xoxb-your-slack-token # Slack token to be used when sending the slack report
     channel: '#general' # Slack channel to be used when sending the slack report

@@ -16,14 +16,17 @@ class NotifierService:
         self._type: str = job.type
         self._notification_policy: str = job.notification_policy
 
-    async def notify(self, results: list[ResultModel], *, elapsed: datetime.timedelta | None = None) -> None:
-        errors = any(result.error for result in results)
-        status = 'ok' if not errors else 'failed'
+    async def notify(self, results: list[ResultModel], *, elapsed: datetime.timedelta | None = None, errors: list[str] = []) -> None:
+        """
+        Send the job report. Errors are job level failures that do not belong to a source, like a failed pre run command.
+        """
+        failed = bool(errors) or any(result.error for result in results)
+        status = 'ok' if not failed else 'failed'
         
         if self._notification_policy == 'never':
             return
         elif self._notification_policy == 'on-failure':
-            if not errors:
+            if not failed:
                 return
         
         if not self._handlers:
@@ -37,6 +40,6 @@ class NotifierService:
             
             try:
                 self._logger.info(f'Sending notification via "{handler_model.handler}" handler')
-                await handler.notify(status, results, elapsed=elapsed)
+                await handler.notify(status, results, elapsed=elapsed, errors=errors)
             except Exception as e:
                 self._logger.error(f"Failed to send notification via {handler_model.handler}: {e}")

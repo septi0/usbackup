@@ -12,6 +12,8 @@ Group=root
 ExecStart=/bin/usbackup --log=/var/log/usbackup/backup.log --log-level=INFO daemon
 Restart=on-failure
 RestartSec=5
+# leaves time to stop running backups and run cleanup jobs, which may wait on unreachable remote hosts
+TimeoutStopSec=180
 
 [Install]
 WantedBy=multi-user.target
