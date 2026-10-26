@@ -37,6 +37,7 @@ Version 1.x is still available in the `legacy` branch.
 - Backup Home Assistant config
 - Backup Proxmox VMs
 - Backup UniFi controller
+- Backup the output of any command (e.g. database dumps)
 - Remote or local sources
 - Replication to local or remote hosts
 - Retention policies per job or per source
@@ -55,6 +56,7 @@ Version 1.x is still available in the `legacy` branch.
 - tar
 - ssh
 - sshpass (if using passwords for remote hosts - not recommended)
+- zstd or gzip (only if the `command` handler compresses its output)
 
 ## Installation
 
@@ -319,6 +321,7 @@ What each handler stores and how to put it back:
 - `homeassistant`: `homeassistant/archive.tar`, a regular Home Assistant backup. Upload it from the backups page in Home Assistant, or pick it during onboarding on a new install.
 - `unifi`: `unifi/unifi_backup.unifi`. Restore it from the backup settings of the UniFi controller.
 - `truenas`: `truenas/freenas-v1.db` and `truenas/pwenc_secret`. Upload the database from the TrueNAS configuration page. To keep saved passwords, put both files in a `.tar` and upload that instead.
+- `command`: one file per command, e.g. `command/all.sql.zst`. Decompress it if needed (`zstd -d` or `gunzip`) and restore it with the matching tool, e.g. `psql -U postgres -f all.sql`.
 - `openwrt`: `openwrt/archive.tar.gz`, the same archive as `sysupgrade -b`. Copy it to the router and run `sysupgrade -r archive.tar.gz`, or upload it from LuCI.
 
 It's a good idea to try a restore once in a while, before you actually need one.

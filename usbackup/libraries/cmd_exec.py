@@ -70,12 +70,17 @@ class CmdExec:
         return result
     
     @classmethod
-    async def pipe(cls, src_cmd: list, dst_cmd: list, *, dst_host: HostModel | None = None, reuse_ssh: bool = False) -> None:
+    async def pipe(cls, src_cmd: list, dst_cmd: list, *, src_host: HostModel | None = None, dst_host: HostModel | None = None, reuse_ssh: bool = False) -> None:
         """
-        Run src_cmd locally and pipe its stdout into stdin of dst_cmd.
-        dst_cmd can optionally run on a remote host via SSH.
+        Pipe the stdout of src_cmd into stdin of dst_cmd.
+        Each command can optionally run on a remote host via SSH, connection reuse only applies to dst_host.
         """
+        src_env = None
         dst_env = None
+        
+        if src_host and not src_host.local:
+            src_cmd = cls.gen_ssh_cmd(src_cmd, src_host)
+            src_env = cls.gen_ssh_env(src_host)
         
         if dst_host and not dst_host.local:
             dst_cmd = cls.gen_ssh_cmd(dst_cmd, dst_host, reuse=reuse_ssh)
@@ -86,7 +91,7 @@ class CmdExec:
         r_fd, w_fd = os.pipe()
 
         try:
-            src_proc = await asyncio.create_subprocess_exec(*src_cmd, stdout=w_fd, stderr=asyncio.subprocess.PIPE)
+            src_proc = await asyncio.create_subprocess_exec(*src_cmd, stdout=w_fd, stderr=asyncio.subprocess.PIPE, env=src_env)
             dst_proc = await asyncio.create_subprocess_exec(*dst_cmd, stdin=r_fd, stderr=asyncio.subprocess.PIPE, env=dst_env)
         finally:
             os.close(w_fd)

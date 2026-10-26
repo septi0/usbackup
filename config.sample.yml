@@ -34,6 +34,11 @@ sources:
       user: unifi_user # Unifi controller username
       password: unifi_password # Unifi controller password
 
+    - handler: command # store the output of a command run on the host, e.g. a database dump. Can be used several times per source
+      cmd: pg_dumpall -U postgres # command to run, through sh on the host, so pipes and redirects work. Keep passwords out of it, use the tool's own config instead (e.g. ~/.pgpass, ~/.my.cnf)
+      file: all.sql # name of the output file in the "command" folder of the version. Must be unique per source
+      compress: zstd # compress the output on the backup server: zstd, gzip, none. The extension is added to the file name (all.sql.zst). Default: none
+    
     - handler: ftp # enable FTP/FTPS backup
       server: ftp.example.com # Address of the FTP server
       limit: [/data, /config] # list of remote paths to download - optional (if omitted, downloads from /)

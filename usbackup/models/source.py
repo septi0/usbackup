@@ -22,5 +22,12 @@ class SourceModel(BaseModel):
                 parsed_values.append(handler_model_factory('backup', handler['handler'], **handler))
             except ImportError as e:
                 raise ValueError(f'Inexistent handler "{handler["handler"]}"')
-            
+        
+        # the commands of a source write into the same folder, so their files must not overwrite each other
+        files = [handler.output_file for handler in parsed_values if handler.handler == 'command']
+        duplicates = sorted({file for file in files if files.count(file) > 1})
+        
+        if duplicates:
+            raise ValueError(f'Command handlers write the same file: {", ".join(duplicates)}')
+        
         return parsed_values
